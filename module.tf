@@ -40,7 +40,7 @@ resource "acloud_cluster" "cluster" {
 
 output "cluster" {
   value = {
-    id = acloud_cluster.cluster.id
+    id      = acloud_cluster.cluster.id
     version = acloud_cluster.cluster.version
   }
 }

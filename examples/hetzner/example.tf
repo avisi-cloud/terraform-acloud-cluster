@@ -39,17 +39,15 @@ module "cluster" {
   cluster_name       = "provider-example"
   cloud_account_name = var.cloud_account_name
 
-  # AWS specific settings
-  region         = "eu-central-1"
-  cloud_provider = "aws"
+  region         = "fsn1"
+  cloud_provider = "hetzner"
 
-  enable_multi_availability_zones = true
-  ingress_node_size               = "t3.medium"
-  ingress_node_count              = 1
+  ingress_node_size  = "cx21"
+  ingress_node_count = 1
 
-  worker_node_size  = "t3.medium"
+  worker_node_size  = "cx21"
   worker_node_count = 1
 
-  data_node_size  = "t3.medium"
+  data_node_size  = "cx21"
   data_node_count = 1
 }
