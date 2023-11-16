@@ -30,6 +30,21 @@ variable "environment_slug" {
 }
 
 variable "cloud_account_name" {
+  description = "name of the cloud account within the Avisi Cloud Console used for provisioning the cluster. Required."
+}
+
+variable "cluster_name" {
+  default = "example"
+}
+
+variable "region" {
+  default     = "fsn1"
+  description = "Hetzner region"
+}
+
+variable "cloud_provider" {
+  default     = "hetzner"
+  description = "Slug of the Hetzner Cloud Provider"
 }
 
 module "cluster" {
@@ -39,15 +54,16 @@ module "cluster" {
   cluster_name       = "provider-example"
   cloud_account_name = var.cloud_account_name
 
-  region         = "fsn1"
-  cloud_provider = "hetzner"
+  region         = var.region
+  cloud_provider = var.cloud_provider
 
-  ingress_node_size  = "cx21"
-  ingress_node_count = 1
+  enable_multi_availability_zones = true
+  default_node_size               = "t3.medium"
+  default_node_count              = 1
 
-  worker_node_size  = "cx21"
-  worker_node_count = 1
-
-  data_node_size  = "cx21"
-  data_node_count = 1
+  node_pools = {
+    data          = {}
+    app           = {}
+    "custom-pool" = {}
+  }
 }
