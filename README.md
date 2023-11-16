@@ -11,14 +11,25 @@ This module is designed to simplify the provisioning of a Kubernetes cluster usi
 |------|---------|
 | <a name="requirement_acloud"></a> [acloud](#requirement\_acloud) | >= 0.3.0 |
 
+## Providers
+
+| Name | Version |
+|------|---------|
+| <a name="provider_acloud"></a> [acloud](#provider\_acloud) | 0.3.0 |
+
+## Modules
+
+| Name | Source | Version |
+|------|--------|---------|
+| <a name="module_data_nodepool"></a> [data\_nodepool](#module\_data\_nodepool) | avisi-cloud/nodepool/acloud | 0.0.3 |
+| <a name="module_ingress_nodepool"></a> [ingress\_nodepool](#module\_ingress\_nodepool) | avisi-cloud/nodepool/acloud | 0.0.3 |
+| <a name="module_worker_nodepool"></a> [worker\_nodepool](#module\_worker\_nodepool) | avisi-cloud/nodepool/acloud | 0.0.3 |
+
 ## Resources
 
 | Name | Type |
 |------|------|
 | [acloud_cluster.cluster](https://registry.terraform.io/providers/avisi-cloud/acloud/latest/docs/resources/cluster) | resource |
-| [acloud_nodepool.data](https://registry.terraform.io/providers/avisi-cloud/acloud/latest/docs/resources/nodepool) | resource |
-| [acloud_nodepool.ingress](https://registry.terraform.io/providers/avisi-cloud/acloud/latest/docs/resources/nodepool) | resource |
-| [acloud_nodepool.worker](https://registry.terraform.io/providers/avisi-cloud/acloud/latest/docs/resources/nodepool) | resource |
 | [acloud_cloud_account.account](https://registry.terraform.io/providers/avisi-cloud/acloud/latest/docs/data-sources/cloud_account) | data source |
 | [acloud_cloud_provider_availability_zones.zones](https://registry.terraform.io/providers/avisi-cloud/acloud/latest/docs/data-sources/cloud_provider_availability_zones) | data source |
 | [acloud_update_channel.channel](https://registry.terraform.io/providers/avisi-cloud/acloud/latest/docs/data-sources/update_channel) | data source |

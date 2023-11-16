@@ -25,18 +25,18 @@ variable "node_pool_data_auto_healing" {
   default     = true
 }
 
-resource "acloud_nodepool" "data" {
-  organisation          = var.organisation_slug
-  environment           = var.environment_slug
-  cluster               = acloud_cluster.cluster.slug
-  name                  = "data"
-  node_size             = var.data_node_size
-  node_count            = var.data_node_count
-  min_size              = var.data_node_count
-  max_size              = var.data_node_count
-  labels                = var.node_pool_data_labels
-  annotations           = var.node_pool_data_annotations
-  node_auto_replacement = var.node_pool_data_auto_healing
-  for_each              = var.enable_multi_availability_zones ? toset(data.acloud_cloud_provider_availability_zones.zones.availability_zones) : [""]
-  availability_zone     = each.key
+module "data_nodepool" {
+  source                          = "avisi-cloud/nodepool/acloud"
+  version                         = "0.0.3"
+  organisation_slug               = var.organisation_slug
+  environment_slug                = var.environment_slug
+  cluster_slug                    = acloud_cluster.cluster.slug
+  region                          = var.region
+  cloud_provider                  = var.cloud_provider
+  node_size                       = var.data_node_size
+  node_count                      = var.data_node_count
+  labels                          = var.node_pool_data_labels
+  annotations                     = var.node_pool_data_annotations
+  enable_auto_healing             = var.node_pool_data_auto_healing
+  enable_multi_availability_zones = var.enable_multi_availability_zones
 }
