@@ -1,22 +1,15 @@
 # Avisi Cloud Multi-tiered Kubernetes Cluster
 
-This module is designed to simplify the provisioning of a Kubernetes cluster using the Avisi Cloud platform with a tiered node pool architecture, on any Cloud Provider.
+This module is designed to simplify the provisioning of a Kubernetes cluster using the Avisi Cloud platform with a tiered node pool architecture, on any Cloud Provider supported by [Avisi Cloud Kubernetes](https://docs.avisi.cloud/product/kubernetes/).
+
+## Notes
+- Make sure you have your cloud account configured. See [how-to docs](https://docs.avisi.cloud/docs/how-to/cloud-accounts/)
 
 ## Requirements
 
 | Name | Version |
 |------|---------|
 | <a name="requirement_acloud"></a> [acloud](#requirement\_acloud) | >= 0.3.0 |
-
-## Providers
-
-| Name | Version |
-|------|---------|
-| <a name="provider_acloud"></a> [acloud](#provider\_acloud) | 0.3.0 |
-
-## Modules
-
-No modules.
 
 ## Resources
 
