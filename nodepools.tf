@@ -43,7 +43,7 @@ variable "default_availablity_zone" {
 
 module "nodepool" {
   source            = "avisi-cloud/nodepool/acloud"
-  version           = "0.0.3"
+  version           = "0.1.0"
   organisation_slug = var.organisation_slug
   environment_slug  = var.environment_slug
   cluster_slug      = acloud_cluster.cluster.slug
