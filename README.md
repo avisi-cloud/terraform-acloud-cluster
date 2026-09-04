@@ -17,7 +17,7 @@ layout - into a single `module` block.
 ```hcl
 module "cluster" {
   source  = "avisi-cloud/cluster/acloud"
-  version = "0.1.0"
+  version = "0.2.0"
 
   organisation_slug  = "example-org"
   environment_slug   = "production"
@@ -101,10 +101,12 @@ Security Standards, auto-upgrade with a maintenance schedule and the rest. Some 
 only as good as the provider behind them - see [known rough edges](#known-rough-edges) before
 relying on `delete_protection`, or on the defaults for `cni` and `pod_security_standards_profile`.
 
+Node pool settings are covered too: autoscaling, taints, per-pool upgrade strategies and security
+updates on join are all `node_pools` keys.
+
 **Reach for the [provider resources](https://registry.terraform.io/providers/avisi-cloud/acloud/latest/docs)
-directly when** you need node pool autoscaling, taints, per-pool upgrade strategies, security updates
-on join, or distinct pool names per availability zone. Those are node pool settings, and the pinned
-node pool module does not accept them yet - see
+directly when** you need a distinct pool name per availability zone, since multi-zone fan-out reuses
+one name for every zone - see
 [what this module does not cover](#what-this-module-does-not-cover). The two approaches mix freely in
 the same configuration.
 
@@ -115,7 +117,7 @@ the same configuration.
 | | Version |
 | --- | --- |
 | Terraform | **`>= 1.3.0`**, declared by the module. The binding constraint is `optional()` in the `addons` variable type |
-| `avisi-cloud/acloud` provider | **`>= 0.10.0`** - the release that added the `addons` block |
+| `avisi-cloud/acloud` provider | **`>= 0.12.0`** - required by the pinned node pool module, which needs it for `security_updates_on_join` |
 
 ### In Avisi Cloud
 
@@ -151,7 +153,7 @@ terraform {
   required_providers {
     acloud = {
       source  = "avisi-cloud/acloud"
-      version = ">= 0.10.0"
+      version = ">= 0.12.0"
     }
   }
 }
@@ -168,7 +170,7 @@ provider "acloud" {
 
 module "cluster" {
   source  = "avisi-cloud/cluster/acloud"
-  version = "0.1.0"
+  version = "0.2.0"
 
   # Placement - all of these must already exist in Avisi Cloud.
   organisation_slug  = "example-org"
@@ -288,10 +290,31 @@ without you having to spell out an object type.
 | `enable_auto_healing` | `default_node_pool_auto_healing` | AME replaces nodes it detects as unhealthy |
 | `enable_multi_availability_zones` | `enable_multi_availability_zones` | Whether this pool spreads over all zones |
 | `availability_zone` | `default_availability_zone` | Zone for a single-zone pool. The older, misspelled `default_availablity_zone` still works as a fallback |
+| `enable_auto_scaling` | `default_node_pool_auto_scaling` | Let AME's cluster autoscaler size the pool instead of holding it at `node_count` |
+| `min_size` | `default_node_pool_min_size` | Lower autoscaler bound. **Per zone** under multi-AZ |
+| `max_size` | `default_node_pool_max_size` | Upper autoscaler bound. **Per zone** under multi-AZ |
+| `taints` | `default_node_pool_taints` | List of `{ key, value, effect }`, so only tolerating pods schedule here |
+| `upgrade_strategy` | `default_node_pool_upgrade_strategy` | How nodes move to a new AME version |
+| `security_updates_on_join` | `default_node_pool_security_updates_on_join` | Patch, and optionally reboot, before a node joins |
 
-Anything else you put in a pool entry is silently ignored, because the module reads these keys
-explicitly. There is no error for a typo - if a setting does not take effect, check it against this
-table first.
+A key outside that list is a plan-time error rather than a silent no-op, so a typo tells you straight
+away instead of quietly doing nothing.
+
+```hcl
+node_pools = {
+  # Autoscaled and tainted, pinned to one zone so the bounds are not multiplied.
+  batch = {
+    enable_multi_availability_zones = false
+    availability_zone               = "eu-west-1a"
+    enable_auto_scaling             = true
+    min_size                        = 0
+    max_size                        = 10
+    upgrade_strategy                = "INPLACE"
+    security_updates_on_join        = "INSTALL_AND_REBOOT"
+    taints                          = [{ key = "dedicated", value = "batch", effect = "NoSchedule" }]
+  }
+}
+```
 
 ### Availability zones multiply your node count
 
@@ -347,27 +370,16 @@ default, which is worth knowing because several of those defaults matter:
 
 | Node pool setting | Result when created through this module |
 | --- | --- |
-| **Autoscaling** | Effectively off. The pinned child module (0.1.0) fixes `min_size` and `max_size` to `node_count` and never sets `auto_scaling`. |
-| **Upgrade strategy** | Not sent at all - which is currently a **bug that blocks new node pools**, see the warning below. |
-| **Security updates on join** | Provider default, `OFF` - nodes join with the packages from their base image. AME recommends `INSTALL_AND_REBOOT`, a beta feature; see the [reference docs](https://docs.avisi.cloud/docs/product/overview/kubernetes/security-updates-on-join) and the [announcement blog](https://docs.avisi.cloud/blog/security-updates-on-join). Supported by the node pool module, but not reachable through this one until the pin is bumped. |
-| **Taints** | None. |
-| **Automatic node reboots** | Configured on the cluster's *Patching* page, not through Terraform. |
+| **Autoscaling** | Off unless you turn it on with `enable_auto_scaling`, `min_size` and `max_size`. |
+| **Upgrade strategy** | The node pool module's default, `REPLACE_MINOR_INPLACE_PATCH_WITHOUT_DRAIN`, which matches AME's default for normal clusters. Override per pool with `upgrade_strategy`. |
+| **Security updates on join** | AME default, `OFF` - nodes join with the packages from their base image. AME recommends `INSTALL_AND_REBOOT`, a beta feature; see the [reference docs](https://docs.avisi.cloud/docs/product/overview/kubernetes/security-updates-on-join) and the [announcement blog](https://docs.avisi.cloud/blog/security-updates-on-join). |
+| **Taints** | None unless you set `taints`. |
+| **Automatic node reboots** | Configured on the cluster's *Patching* page, not through Terraform. The `kured` add-on is what performs them. |
 
-> **Warning:**
-> **Creating node pools through this module currently fails against provider 0.8.0 and newer.**
-> The pinned node pool module (0.1.0) never sets `upgrade_strategy` on the `acloud_nodepool`
-> resource. From provider 0.8.0 onwards the provider parses that attribute unconditionally when it
-> creates a pool, and rejects the empty string an unset value produces, so `apply` stops with:
->
-> ```
-> cannot parse upgradeStrategy: unsupported upgrade strategy:
-> ```
->
-> Because this module's provider floor resolves to a current release, a fresh `apply` hits it.
-> Node pool module 0.2.0 fixes this by always sending a valid strategy, and this module picks the
-> fix up when its pin moves to 0.2.0 - it cannot be worked around from here. Until then, create the
-> cluster with `node_pools = {}` and declare `acloud_nodepool` resources directly, setting
-> `upgrade_strategy` explicitly on each.
+> **Note:**
+> On a Bring Your Own Node cluster AME's own default upgrade strategy is `INPLACE`, not the value
+> above. Set `upgrade_strategy = "INPLACE"` explicitly on those pools so the module's default does
+> not override it.
 
 > **Caution:**
 > **Do not combine autoscaling with automatic node reboots while nodes join unpatched.** A node joins,
@@ -680,53 +692,49 @@ Every cluster-level attribute of the `acloud_cluster` resource is now passed thr
 
 | Area | Provider attribute | Why not |
 | --- | --- | --- |
-| Node pool autoscaling | `auto_scaling`, `min_size`, `max_size` | Not reachable yet - see below |
-| Node taints | `taints { key, value, effect }` | Not reachable yet - see below |
-| Per-pool upgrade strategy | `upgrade_strategy` | Not reachable yet - see below |
-| Security updates on join | `security_updates_on_join` | Not reachable yet - see below |
+| Distinct pool name per availability zone | `name` | Multi-zone fan-out reuses one name for every zone - see [known rough edges](#known-rough-edges) |
 | Stop / start a cluster | `stopped` | **Deprecated** in the provider. Do not build new configuration on it |
 | Working delete protection | `delete_protection` | The input exists here, but the provider never sends the attribute, so it does nothing today |
 | Kubernetes API server IP allowlist | - | A Console-only setting, not exposed by the provider |
 | Creating environments, cloud accounts, maintenance schedules | `acloud_environment`, `acloud_cloud_account`, `acloud_maintenance_schedule` | Separate resources - compose them alongside this module |
 
-### Why node pool settings are not reachable yet
+### Reaching the rest of `acloud_nodepool`
 
-The four node pool settings above are attributes of `acloud_nodepool`, and this module never creates
-that resource - it delegates every pool to
+Node pool settings are attributes of `acloud_nodepool`, and this module never creates that resource
+directly - it delegates every pool to
 [`avisi-cloud/nodepool/acloud`](https://registry.terraform.io/modules/avisi-cloud/nodepool/acloud/latest),
-pinned here at **0.1.0**. That version does not accept them, so there is nothing for `node_pools` to
-forward.
+pinned here at **0.2.0**. Autoscaling, taints, upgrade strategy and security updates on join are all
+forwarded as `node_pools` keys, so the common cases need nothing extra.
 
-The node pool module has since gained all four. Once a release carrying them is published, this
-module can bump its pin and expose them as additional `node_pools` override keys. That same pin bump
-is also what fixes the create-time failure described [above](#what-the-module-does-not-set-on-a-node-pool),
-which is why it is a release blocker rather than a nice-to-have.
-
-Until then, declare the pools you need directly. Note that `upgrade_strategy` is not optional in
-practice: leave it out and the provider rejects the create.
+If you need something the child module does not expose - a distinct pool name per availability zone
+is the usual one - declare the pool with the provider directly alongside the module:
 
 ```hcl
 module "cluster" {
   source  = "avisi-cloud/cluster/acloud"
-  version = "0.1.0"
+  version = "0.2.0"
   # ...
   node_pools = {}   # let the module create the cluster only
 }
 
-resource "acloud_nodepool" "workers" {
+resource "acloud_nodepool" "workers_a" {
   organisation = "example-org"
   environment  = "production"
 
   # The module outputs the slug AME derived from cluster_name, so the pool can
   # be wired to the cluster without hardcoding it.
   cluster   = module.cluster.cluster.slug
-  name      = "workers"
+  name      = "workers-a"
   node_size = "t3.large"
 
-  auto_scaling             = true
-  min_size                 = 2
-  max_size                 = 6
-  node_auto_replacement    = true
+  availability_zone     = "eu-west-1a"
+  auto_scaling          = true
+  min_size              = 2
+  max_size              = 6
+  node_auto_replacement = true
+
+  # Not optional in practice: the provider rejects an empty upgrade strategy
+  # when it creates a pool.
   upgrade_strategy         = "REPLACE_MINOR_INPLACE_PATCH_WITHOUT_DRAIN"
   security_updates_on_join = "INSTALL_AND_REBOOT"
 
@@ -752,15 +760,14 @@ Honest list of things that are true of the current module and worth knowing befo
 | | Impact | Workaround |
 | --- | --- | --- |
 | `update_channel_name` defaults to the rolling `regular` channel | Version is not frozen: when AME advances the channel, the next plan proposes a minor upgrade that recycles nodes | Pin a series (`v1.35`) or a version (`kubernetes_version`) if you want to control when that happens |
-| **Node pools cannot be created at all against provider 0.8.0+** | The pinned node pool module never sends `upgrade_strategy`, which the provider rejects. `apply` fails with `cannot parse upgradeStrategy` | Use `node_pools = {}` and declare `acloud_nodepool` directly until the pin moves to node pool module 0.2.0 |
 | `delete_protection` does nothing | The provider never sends the attribute, so a cluster you believe is protected is not | Set delete protection in the Console |
 | An unset `pod_security_standards_profile` means `privileged` | The provider defaults it to the least restrictive profile rather than letting AME choose `baseline` | Always set it explicitly; `restricted` is AME's recommendation |
 | An unset `cni` has an ambiguous meaning | Product docs say Calico, the platform API defaults to Cilium. Combined with `enable_network_encryption = true` this can silently produce an unencrypted cluster | Set `cni` explicitly |
 | `default_availablity_zone` is misspelled | The name is wrong, and easy to mistype as the correct spelling | Use `default_availability_zone`, which now exists and takes precedence. The misspelled input still works |
-| Node pools created through this module cannot autoscale, be tainted, or set an upgrade strategy | The pinned node pool module (0.1.0) does not accept those inputs, even though the module now supports them upstream | Declare `acloud_nodepool` directly, or wait for the pin to be bumped |
+| Autoscaler bounds are per zone under multi-AZ | `min_size`/`max_size` apply to each zone's pool, so a 0-10 range across three zones is really 0 to 30 machines | Pin autoscaled pools to a single zone with `enable_multi_availability_zones = false` |
 | Multi-zone fan-out reuses the pool name for every zone | Each zone's pool is submitted with the same name and differs only by `availability_zone`. The provider's own multi-AZ examples instead use distinct names per zone (`workers-a`, `workers-b`, `workers-c`) | If you need per-zone names, declare `acloud_nodepool` directly |
 | The `cluster` output carries no node pool details | `id`, `slug`, `version` and `status` are exposed, but nothing about the pools themselves | Read them back with the `acloud_nodepool` data source |
-| Provider floor raised to `>= 0.10.0` | Required by the `addons` block. Configurations pinned to an older provider will not resolve | Upgrade the provider; 0.10.0 is from January 2026 |
+| Provider floor raised to `>= 0.12.0` | Required by the pinned node pool module for `security_updates_on_join`. Configurations pinned to an older provider will not resolve | Upgrade the provider; 0.12.0 is from September 2026 |
 
 ## Troubleshooting
 
@@ -777,12 +784,32 @@ Honest list of things that are true of the current module and worth knowing befo
 
 ## Contributing
 
-Development setup, the `make` workflow, how the generated README blocks work, and the release
-process live in [CONTRIBUTING.md](https://github.com/avisi-cloud/terraform-acloud-cluster/blob/main/CONTRIBUTING.md).
+Hand-written prose and generated reference tables share this `README.md`. Everything above the
+`BEGIN_TF_DOCS` marker is written by hand; everything between the markers is generated by
+[terraform-docs](https://terraform-docs.io) from the `.tf` files and is overwritten on every run.
+The same split applies to each `examples/*/README.md`.
 
-One consequence is worth repeating here, because it catches people out: **the Registry's Inputs tab
-is generated from the `variable` blocks, not from this README.** Improving how an input is
-documented means editing its `description` in the `.tf` file and running `make docs`.
+```sh
+make            # list the available targets
+make docs       # regenerate every README's generated block, in place
+make docs-check # fail if any generated block is stale - what CI runs
+make fmt-check  # terraform fmt -check -recursive
+make validate   # terraform init + validate, module and every example
+make check      # fmt-check + docs-check
+```
+
+Formatting and table settings live in `.terraform-docs.yml`. Two settings there are deliberate:
+`lockfile: false`, because lock files are not committed and reading them would make the generated
+tables depend on whichever provider happened to be installed locally, and a terraform-docs floor of
+`>= 0.18.0`, because the Makefile passes `--recursive-include-main`, which older releases reject.
+
+One consequence is worth repeating, because it catches people out: **the Registry's Inputs tab is
+generated from the `variable` blocks, not from this README.** Improving how an input is documented
+means editing its `description` in the `.tf` file and running `make docs`. Registry pages rebuild
+only when a new tag is published.
+
+Keep the Markdown portable: use `> **Note:**` blockquotes rather than GitHub's `> [!NOTE]` alert
+syntax, which the Registry renders as literal text.
 
 ## Related documentation
 
@@ -812,19 +839,19 @@ Run `make docs` after changing any variable, output, resource or module block.
 | Name | Version |
 | ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.3.0 |
-| <a name="requirement_acloud"></a> [acloud](#requirement\_acloud) | >= 0.10.0 |
+| <a name="requirement_acloud"></a> [acloud](#requirement\_acloud) | >= 0.12.0 |
 
 ### Providers
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_acloud"></a> [acloud](#provider\_acloud) | >= 0.10.0 |
+| <a name="provider_acloud"></a> [acloud](#provider\_acloud) | >= 0.12.0 |
 
 ### Modules
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| <a name="module_nodepool"></a> [nodepool](#module\_nodepool) | avisi-cloud/nodepool/acloud | 0.1.0 |
+| <a name="module_nodepool"></a> [nodepool](#module\_nodepool) | avisi-cloud/nodepool/acloud | 0.2.0 |
 
 ### Resources
 
@@ -854,6 +881,12 @@ Run `make docs` after changing any variable, output, resource or module block.
 | <a name="input_default_node_count"></a> [default\_node\_count](#input\_default\_node\_count) | Number of nodes per node pool for pools that do not set `node_count`. With `enable_multi_availability_zones` on, this is the count *per availability zone*, so the pool provisions this many nodes in every zone of the region. | `number` | `1` | no |
 | <a name="input_default_node_labels"></a> [default\_node\_labels](#input\_default\_node\_labels) | Kubernetes node labels applied by node pools that do not set `labels`. Labels are set on every node in the pool and can be used for scheduling with `nodeSelector` or node affinity. | `map(string)` | `{}` | no |
 | <a name="input_default_node_pool_auto_healing"></a> [default\_node\_pool\_auto\_healing](#input\_default\_node\_pool\_auto\_healing) | Auto-healing setting for node pools that do not set `enable_auto_healing`. When enabled, AME automatically replaces nodes it detects as unhealthy. Maps to `node_auto_replacement` on the underlying `acloud_nodepool` resource. | `bool` | `true` | no |
+| <a name="input_default_node_pool_auto_scaling"></a> [default\_node\_pool\_auto\_scaling](#input\_default\_node\_pool\_auto\_scaling) | Autoscaling setting for node pools that do not set `enable_auto_scaling`. When enabled, AME's cluster autoscaler sizes the pool on utilisation between `min_size` and `max_size` instead of holding it at `node_count`. Note that with multi-AZ on, those bounds apply to each zone's pool, so the cluster-wide totals are multiplied by the number of zones. | `bool` | `false` | no |
+| <a name="input_default_node_pool_max_size"></a> [default\_node\_pool\_max\_size](#input\_default\_node\_pool\_max\_size) | Upper autoscaler bound for node pools that do not set `max_size`. Only used where autoscaling is on. Leave null to fall back to the pool's `node_count`. | `number` | `null` | no |
+| <a name="input_default_node_pool_min_size"></a> [default\_node\_pool\_min\_size](#input\_default\_node\_pool\_min\_size) | Lower autoscaler bound for node pools that do not set `min_size`. Only used where autoscaling is on. Leave null to fall back to the pool's `node_count`. | `number` | `null` | no |
+| <a name="input_default_node_pool_security_updates_on_join"></a> [default\_node\_pool\_security\_updates\_on\_join](#input\_default\_node\_pool\_security\_updates\_on\_join) | Security updates on join for node pools that do not set `security_updates_on_join`: `OFF`, `INSTALL` or `INSTALL_AND_REBOOT`. AME recommends `INSTALL_AND_REBOOT` so that nodes join fully patched, which also stops the daily recycle loop you get from combining autoscaling with automatic node reboots. Beta feature: its values and defaults can still change, and it needs an AME release that supports it. Leave null for the AME default of `OFF`. | `string` | `null` | no |
+| <a name="input_default_node_pool_taints"></a> [default\_node\_pool\_taints](#input\_default\_node\_pool\_taints) | Kubernetes taints applied to node pools that do not set `taints`, so that only pods with a matching toleration are scheduled onto them. Each entry takes `key`, `value` and an `effect` of `NoSchedule`, `PreferNoSchedule` or `NoExecute`. | <pre>list(object({<br/>    key    = string<br/>    value  = string<br/>    effect = string<br/>  }))</pre> | `[]` | no |
+| <a name="input_default_node_pool_upgrade_strategy"></a> [default\_node\_pool\_upgrade\_strategy](#input\_default\_node\_pool\_upgrade\_strategy) | Upgrade strategy for node pools that do not set `upgrade_strategy`: `REPLACE`, `REPLACE_MINOR_INPLACE_PATCH`, `REPLACE_MINOR_INPLACE_PATCH_WITHOUT_DRAIN`, `INPLACE` or `INPLACE_WITHOUT_DRAIN`. Leave null to use the node pool module's default, which matches AME's default for normal clusters. On Bring Your Own Node clusters AME defaults to `INPLACE` instead, so set that explicitly there. | `string` | `null` | no |
 | <a name="input_delete_protection"></a> [delete\_protection](#input\_delete\_protection) | Intended to block deletion of the cluster in AME until the protection is lifted. **Currently inert: do not rely on it.** The attribute exists in the provider's schema from 0.10.0 onwards, but the provider does not send it when creating a cluster, does not read it back, and does not send it on update - so setting it here changes nothing on the platform. It is exposed so that configurations are ready for a provider release that implements it. Set delete protection in the Console if you need it today. Note that Terraform can remove the resource from state regardless; this was only ever a guard on the AME side. | `bool` | `null` | no |
 | <a name="input_description"></a> [description](#input\_description) | Human-readable description of the cluster, shown in the Avisi Cloud Console. Note that the provider only sends this when the cluster is created; it is not part of the update payload, so editing it later has no effect until the cluster is replaced. | `string` | `null` | no |
 | <a name="input_enable_auto_upgrade"></a> [enable\_auto\_upgrade](#input\_enable\_auto\_upgrade) | Let AME upgrade the cluster automatically towards its `update_channel`, inside the window of `maintenance_schedule_id`. Without a maintenance schedule there is no window for an upgrade to run in, so set both together. Leave null to send nothing, which the provider turns into `false`. Requires provider >= 0.6.0. | `bool` | `null` | no |
@@ -863,7 +896,7 @@ Run `make docs` after changing any variable, output, resource or module block.
 | <a name="input_enable_private_cluster"></a> [enable\_private\_cluster](#input\_enable\_private\_cluster) | Provision the cluster without public IP addresses on its nodes, routing outbound traffic through a NAT gateway so nodes share a static egress IP. Availability and exact behaviour are cloud-provider specific, and it makes provisioning slower because extra cloud resources are created. Can only be set at creation time. | `bool` | `false` | no |
 | <a name="input_kubernetes_version"></a> [kubernetes\_version](#input\_kubernetes\_version) | Exact AME Kubernetes version to run, for example `v1.35.6-u-ame.4`. Leave this `null` (the default) to resolve the version from `update_channel_name` instead. Setting it pins the cluster: the version only changes when you change this value. | `string` | `null` | no |
 | <a name="input_maintenance_schedule_id"></a> [maintenance\_schedule\_id](#input\_maintenance\_schedule\_id) | Identity of the AME maintenance schedule that defines when automatic upgrades may run. Maintenance schedules are managed organisation-wide; create one in the Console or with an `acloud_maintenance_schedule` resource and pass its `id` here. Leave null for no schedule. Requires provider >= 0.6.0. | `string` | `null` | no |
-| <a name="input_node_pools"></a> [node\_pools](#input\_node\_pools) | Map of node pool name to per-pool overrides. Keys become the AME node pool names and are used for the Kubernetes node role label. Supported override keys are `node_size`, `node_count`, `labels`, `annotations`, `enable_auto_healing`, `enable_multi_availability_zones` and `availability_zone`; any key a pool omits falls back to the matching `default_*` variable. Unsupported keys are rejected at plan time rather than silently ignored. Set this to `{}` to create a cluster with no node pools. | `any` | <pre>{<br/>  "data": {},<br/>  "ingress": {},<br/>  "worker": {}<br/>}</pre> | no |
+| <a name="input_node_pools"></a> [node\_pools](#input\_node\_pools) | Map of node pool name to per-pool overrides. Keys become the AME node pool names and are used for the Kubernetes node role label. Supported override keys are `node_size`, `node_count`, `labels`, `annotations`, `enable_auto_healing`, `enable_multi_availability_zones`, `availability_zone`, `enable_auto_scaling`, `min_size`, `max_size`, `taints`, `upgrade_strategy` and `security_updates_on_join`; any key a pool omits falls back to the matching `default_*` variable. Unsupported keys are rejected at plan time rather than silently ignored. Set this to `{}` to create a cluster with no node pools. | `any` | <pre>{<br/>  "data": {},<br/>  "ingress": {},<br/>  "worker": {}<br/>}</pre> | no |
 | <a name="input_pod_security_standards_profile"></a> [pod\_security\_standards\_profile](#input\_pod\_security\_standards\_profile) | Default Kubernetes Pod Security Standards profile enforced in the cluster: `privileged` (unrestricted), `baseline` (blocks known privilege escalations) or `restricted` (least privilege, and what AME recommends for all clusters). Namespaces can relax or tighten this individually with `pod-security.kubernetes.io/*` labels. Values are case-insensitive. **Leaving this null does not give you an AME-chosen default**: the provider substitutes its own default of `privileged`, the least restrictive profile, and sends that. AME would fall back to `baseline` if nothing were sent at all, but the provider never lets that happen. Set this explicitly - `restricted` unless you know you need otherwise. | `string` | `null` | no |
 | <a name="input_update_channel"></a> [update\_channel](#input\_update\_channel) | Update channel the cluster follows inside AME, for example `regular`. This is different from `update_channel_name`, which only resolves a version when Terraform plans: setting this records the channel on the cluster so AME itself knows what to upgrade towards, which is what `enable_auto_upgrade` acts on. Set it to the same value as `update_channel_name` unless you deliberately want them to differ. Leave null to leave the cluster's channel unset. | `string` | `null` | no |
 | <a name="input_update_channel_name"></a> [update\_channel\_name](#input\_update\_channel\_name) | Name of the AME update channel used to resolve the Kubernetes version when `kubernetes_version` is null. Rolling channels (`stable`, `regular`, `preview`) follow a Kubernetes minor series that AME advances over time; pinned channels (`v1.34`, `v1.35`, ...) stay on one minor series and only receive patch releases. The default is `regular`, the channel AME recommends for production workloads, so a cluster gets a supported version without configuring anything. Because the channel resolves to a concrete version at plan time, a channel that has advanced shows up as a version diff on the next plan. | `string` | `"regular"` | no |

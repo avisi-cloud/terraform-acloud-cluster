@@ -123,13 +123,13 @@ Run `make docs` after changing any variable, output, resource or module block.
 
 | Name | Version |
 | ---- | ------- |
-| <a name="requirement_acloud"></a> [acloud](#requirement\_acloud) | >= 0.10.0 |
+| <a name="requirement_acloud"></a> [acloud](#requirement\_acloud) | >= 0.12.0 |
 
 ### Providers
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_acloud"></a> [acloud](#provider\_acloud) | >= 0.10.0 |
+| <a name="provider_acloud"></a> [acloud](#provider\_acloud) | >= 0.12.0 |
 
 ### Modules
 
