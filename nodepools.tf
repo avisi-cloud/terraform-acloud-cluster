@@ -96,7 +96,7 @@ locals {
 # `node_count`, so pools created through this module do not autoscale.
 module "nodepool" {
   source            = "avisi-cloud/nodepool/acloud"
-  version           = "0.1.0"
+  version           = "0.2.0"
   organisation_slug = var.organisation_slug
   environment_slug  = var.environment_slug
   cluster_slug      = acloud_cluster.cluster.slug
