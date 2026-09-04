@@ -4,9 +4,7 @@ terraform {
 
   required_providers {
     acloud = {
-      # 0.10.0 is the release that added the `addons` block and
-      # `delete_protection`. 0.10.1 changed only the provider's own examples.
-      version = ">= 0.10.0"
+      version = ">= 0.12.0"
       source  = "avisi-cloud/acloud"
     }
   }
