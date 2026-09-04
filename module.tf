@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     acloud = {
-      version = ">= 0.5.0"
+      version = ">= 0.10.1"
       source  = "avisi-cloud/acloud"
     }
   }
@@ -41,12 +41,33 @@ resource "acloud_cluster" "cluster" {
   organisation                        = var.organisation_slug
   environment                         = var.environment_slug
   name                                = var.cluster_name
+  description                         = var.description
   version                             = var.kubernetes_version != null ? var.kubernetes_version : data.acloud_update_channel.channel[0].version
   region                              = var.region
   enable_multi_availability_zones     = var.enable_multi_availability_zones
   enable_high_available_control_plane = var.enable_high_available_control_plane
   enable_private_cluster              = var.enable_private_cluster
   enable_network_encryption           = var.enable_network_encryption
+
+  cni                            = var.cni
+  pod_security_standards_profile = var.pod_security_standards_profile
+  delete_protection              = var.delete_protection
+  cluster_state_wait_seconds     = var.cluster_state_wait_seconds
+
+  # `version` above is the target for this apply; `update_channel` is what AME
+  # follows on its own, and what auto-upgrade acts on.
+  update_channel          = var.update_channel
+  enable_auto_upgrade     = var.enable_auto_upgrade
+  maintenance_schedule_id = var.maintenance_schedule_id
+
+  dynamic "addons" {
+    for_each = var.addons
+    content {
+      name          = addons.key
+      enabled       = addons.value.enabled
+      custom_values = addons.value.custom_values
+    }
+  }
 }
 
 output "cluster" {

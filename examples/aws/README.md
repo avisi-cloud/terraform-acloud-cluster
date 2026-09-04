@@ -18,7 +18,10 @@ Because multi-AZ is enabled, each multi-zone pool is created **once per zone**:
 | `data` | `eu-west-1a` only | 3 | 3 × `t3.large` |
 | | | | **12 machines total** |
 
-Plus one `acloud_cluster` with a highly available control plane and network encryption enabled.
+Plus one `acloud_cluster` with a highly available control plane, Calico networking with encryption,
+the `restricted`
+Pod Security Standards profile, delete protection, four managed add-ons, and automatic upgrades
+inside a Sunday-night maintenance window - and the `acloud_maintenance_schedule` that defines it.
 
 > [!NOTE]
 > `node_count` is nodes **per availability zone** for multi-zone pools. Halve the counts, or pin a
@@ -49,6 +52,46 @@ node_pools = {
 The control plane's HA model - Single-Zone HA or Multi-Zone HA - is chosen by AME based on the
 cluster pool the control plane lands in; Multi-Zone HA needs a multi-zone AME pool.
 See [Why AME](https://docs.avisi.cloud/docs/product/why-ame).
+
+### Hands-off version management
+
+```hcl
+update_channel          = "regular"                              # what AME upgrades towards
+enable_auto_upgrade     = true                                   # let it act
+maintenance_schedule_id = acloud_maintenance_schedule.nightly.id # when it may act
+```
+
+All three are needed. `update_channel` records the channel on the cluster (distinct from
+`update_channel_name`, which only resolves a version at plan time), and without a maintenance window
+there is no time for an upgrade to run.
+
+### Add-ons
+
+```hcl
+addons = {
+  certManager       = {}
+  ingressController = {}     # no custom_values on purpose
+  monitoring        = {}
+  logging           = {}
+}
+```
+
+AME installs and updates these, so do not deploy them yourself as well.
+
+> [!WARNING]
+> `ingressController` sets no `custom_values.type` deliberately. The ingress implementations
+> available today are all being superseded - `ingress-nginx` is being deprecated and `traefik` is
+> being replaced by a newer managed controller - so pinning a type would pin this cluster to
+> something on its way out. Leaving it unset follows whatever AME's current default is.
+
+> [!NOTE]
+> Enabling `ingressController` provisions a cloud load balancer through a Kubernetes Service, and
+> needs at least one node pool to exist first. Disabling it later releases that load balancer's IP
+> address.
+
+`cni` is deliberately left unset here, so the cluster runs the AME default, Calico. That is what
+makes `enable_network_encryption = true` meaningful - encryption at the CNI layer is a Calico-only
+feature. [`examples/cyso`](../cyso) shows the other side of that trade: Cilium, with encryption off.
 
 ## Prerequisites
 
@@ -82,7 +125,11 @@ Run `make docs` after changing any variable, output, resource or module block.
 | ---- | ------- |
 | <a name="requirement_acloud"></a> [acloud](#requirement\_acloud) | >= 0.10.1 |
 
+### Providers
 
+| Name | Version |
+| ---- | ------- |
+| <a name="provider_acloud"></a> [acloud](#provider\_acloud) | 0.12.0 |
 
 ### Modules
 
@@ -90,7 +137,11 @@ Run `make docs` after changing any variable, output, resource or module block.
 | ---- | ------ | ------- |
 | <a name="module_cluster"></a> [cluster](#module\_cluster) | ../../ | n/a |
 
+### Resources
 
+| Name | Type |
+| ---- | ---- |
+| [acloud_maintenance_schedule.nightly](https://registry.terraform.io/providers/avisi-cloud/acloud/latest/docs/resources/maintenance_schedule) | resource |
 
 ### Inputs
 

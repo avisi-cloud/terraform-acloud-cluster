@@ -69,6 +69,19 @@ variable "single_zone_availability_zone" {
   default     = "eu-west-1a"
 }
 
+# Automatic upgrades need a window to run in. Maintenance schedules are managed
+# organisation-wide, so one schedule is typically shared by many clusters.
+resource "acloud_maintenance_schedule" "nightly" {
+  name         = "${var.cluster_name}-nightly"
+  organisation = var.organisation_slug
+
+  windows {
+    day        = "SUNDAY"
+    start_time = "02:00"
+    duration   = 180 # minutes
+  }
+}
+
 module "cluster" {
   source = "../../"
 
@@ -87,6 +100,37 @@ module "cluster" {
   enable_multi_availability_zones     = true
   enable_high_available_control_plane = true
   enable_network_encryption           = true
+
+  # `cni` is left unset, so the cluster uses the AME default, Calico. That is
+  # what makes enable_network_encryption above valid - it is a Calico-only
+  # feature. See examples/cyso for the Cilium alternative.
+  #
+  # Least-privilege pod defaults; namespaces can relax the profile individually
+  # with pod-security.kubernetes.io/* labels.
+  pod_security_standards_profile = "restricted"
+
+  description       = "Production order processing"
+  delete_protection = true
+
+  # Record the channel on the cluster so AME knows what to upgrade towards,
+  # then let it act on that inside the maintenance window above.
+  update_channel          = "regular"
+  enable_auto_upgrade     = true
+  maintenance_schedule_id = acloud_maintenance_schedule.nightly.id
+
+  # Managed add-ons: AME installs and updates these, so do not also deploy them
+  # yourself.
+  #
+  # `ingressController` deliberately sets no custom_values. The ingress
+  # implementations available today are all being superseded, so pinning
+  # custom_values.type would pin the cluster to something on its way out.
+  # Unset means "follow AME's current default".
+  addons = {
+    certManager       = {}
+    ingressController = {}
+    monitoring        = {}
+    logging           = {}
+  }
 
   default_node_size  = "t3.medium"
   default_node_count = 1

@@ -19,16 +19,29 @@ multi-zone pool is created **once per zone**:
 | `data` | `ams2-a` only | 2 | 2 × `s5.small` |
 | | | | **11 machines total** |
 
-Plus one `acloud_cluster` with a highly available control plane, network encryption, and a NAT
-gateway instead of public node IPs.
+Plus one `acloud_cluster` with a highly available control plane, Cilium networking, the `restricted`
+Pod Security Standards profile, the cert-manager and NFS add-ons, and a NAT gateway instead of public
+node IPs.
 
 ## The interesting bits
 
 ```hcl
-# All three cannot be changed after the cluster is created.
+# Multi-AZ and private cluster cannot be changed after creation.
 enable_multi_availability_zones     = true
 enable_high_available_control_plane = true
 enable_private_cluster              = true
+
+# Cilium instead of the Calico default. Network encryption is Calico-only, so
+# it is switched off rather than silently ignored.
+cni                       = "cilium"
+enable_network_encryption = false
+
+pod_security_standards_profile = "restricted"
+
+addons = {
+  certManager = {}
+  nfs         = {}
+}
 
 node_pools = {
   system = { labels = { "role" = "system" } }  # 1 per zone  -> 3 machines
@@ -41,6 +54,11 @@ node_pools = {
   }
 }
 ```
+
+> [!NOTE]
+> Cilium and network encryption do not combine: `enable_network_encryption` configures the CNI to
+> encrypt node-to-node traffic and is only supported by Calico. Compare with
+> [`examples/aws`](../aws), which keeps Calico and turns encryption on.
 
 > [!NOTE]
 > On a private cluster there is no public IP on the nodes, so a NodePort has to be reached through

@@ -88,11 +88,23 @@ module "cluster" {
   # machines and `apps` six.
   enable_multi_availability_zones     = true
   enable_high_available_control_plane = true
-  enable_network_encryption           = true
+
+  # Cilium's eBPF data plane, with Layer 7 load balancing and richer flow
+  # observability. Network encryption is a Calico-only feature, so it is
+  # switched off here rather than silently ignored.
+  cni                       = "cilium"
+  enable_network_encryption = false
 
   # No public IPs on the nodes; egress leaves through a NAT gateway with a
   # stable outbound address. Cannot be changed after creation.
   enable_private_cluster = true
+
+  pod_security_standards_profile = "restricted"
+
+  addons = {
+    certManager = {}
+    nfs         = {}
+  }
 
   default_node_size  = "s5.small"
   default_node_count = 1

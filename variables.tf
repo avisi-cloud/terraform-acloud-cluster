@@ -87,3 +87,92 @@ variable "enable_network_encryption" {
   type        = bool
   default     = true
 }
+
+# ---------------------------------------------------------------------------
+# Cluster metadata and policy
+#
+# All optional and defaulting to null, which leaves the AME default in place
+# and keeps existing callers' plans clean.
+# ---------------------------------------------------------------------------
+
+variable "description" {
+  description = "Human-readable description of the cluster, shown in the Avisi Cloud Console. Useful for telling Avisi Cloud support what the cluster is for."
+  type        = string
+  default     = null
+}
+
+variable "cni" {
+  description = "Container Network Interface plugin for the cluster: `calico` (the AME default), `cilium`, or `custom` to bring your own. Cilium uses eBPF and adds Layer 7 load balancing and richer observability; Calico is required if you want `enable_network_encryption`. Values are case-insensitive. Leave null to use the AME default."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.cni == null || contains(["calico", "cilium", "custom"], lower(coalesce(var.cni, "calico")))
+    error_message = "cni must be one of calico, cilium, custom, or null."
+  }
+}
+
+variable "pod_security_standards_profile" {
+  description = "Default Kubernetes Pod Security Standards profile enforced in the cluster: `privileged` (unrestricted), `baseline` (blocks known privilege escalations) or `restricted` (least privilege, recommended). Namespaces can relax or tighten this individually with `pod-security.kubernetes.io/*` labels. Values are case-insensitive. Leave null to use the AME default."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.pod_security_standards_profile == null || contains(["privileged", "baseline", "restricted"], lower(coalesce(var.pod_security_standards_profile, "baseline")))
+    error_message = "pod_security_standards_profile must be one of privileged, baseline, restricted, or null."
+  }
+}
+
+variable "delete_protection" {
+  description = "Block deletion of the cluster until the protection is lifted. Note that Terraform can still remove the resource from state; this guards against the cluster being deleted in AME. Leave null to use the AME default. Requires provider >= 0.10.0."
+  type        = bool
+  default     = null
+}
+
+variable "cluster_state_wait_seconds" {
+  description = "How long the provider waits for the cluster to reach its desired state before timing out. Raise it when provisioning is slow, for example on a private cluster where extra cloud resources are created first. Leave null to use the provider default."
+  type        = number
+  default     = null
+}
+
+# ---------------------------------------------------------------------------
+# Version tracking and automatic upgrades
+#
+# `update_channel_name` above only resolves a version at plan time.
+# `update_channel` below makes AME follow the channel server-side, which is
+# what auto-upgrade acts on.
+# ---------------------------------------------------------------------------
+
+variable "update_channel" {
+  description = "Update channel the cluster follows inside AME, for example `regular`. This is different from `update_channel_name`, which only resolves a version when Terraform plans: setting this records the channel on the cluster so AME itself knows what to upgrade towards, which is what `enable_auto_upgrade` acts on. Set it to the same value as `update_channel_name` unless you deliberately want them to differ. Leave null to leave the cluster's channel unset."
+  type        = string
+  default     = null
+}
+
+variable "enable_auto_upgrade" {
+  description = "Let AME upgrade the cluster automatically towards its `update_channel`, inside the window of `maintenance_schedule_id`. Without a maintenance schedule there is no window for an upgrade to run in, so set both together. Leave null to use the AME default. Requires provider >= 0.6.0."
+  type        = bool
+  default     = null
+}
+
+variable "maintenance_schedule_id" {
+  description = "Identity of the AME maintenance schedule that defines when automatic upgrades may run. Maintenance schedules are managed organisation-wide; create one in the Console or with an `acloud_maintenance_schedule` resource and pass its `id` here. Leave null for no schedule. Requires provider >= 0.6.0."
+  type        = string
+  default     = null
+}
+
+# ---------------------------------------------------------------------------
+# Add-ons
+#
+# Managed components AME installs and keeps up to date inside the cluster.
+# Keyed by add-on name; only `ingressController` takes custom values.
+# ---------------------------------------------------------------------------
+
+variable "addons" {
+  description = "Managed AME add-ons to configure, keyed by add-on name. Available names are `certManager`, `cloudNativePG`, `defaultNetworkPolicies`, `fluxOperator`, `gpu`, `ingressController`, `kured`, `logging`, `monitoring`, `nfs` and `sealedSecrets`. Each entry takes `enabled` (defaults to true) and `custom_values`, a string map that only `ingressController` currently uses, with the key `type` selecting the ingress implementation. Leave that key unset: the implementations it currently accepts are all being superseded, and an unset value follows whatever AME's current default is. Add-ons are managed by AME rather than by you, so do not also install them yourself. Requires provider >= 0.10.0."
+  type = map(object({
+    enabled       = optional(bool, true)
+    custom_values = optional(map(string))
+  }))
+  default = {}
+}
