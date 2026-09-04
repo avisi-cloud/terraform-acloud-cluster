@@ -39,7 +39,9 @@ fmt: ## Rewrite all .tf files to canonical format
 fmt-check: ## Fail if any .tf file is not canonically formatted
 	$(TERRAFORM) fmt -check -recursive .
 
-validate: ## terraform init + validate for every example (needs registry access)
+validate: ## terraform init + validate for the module and every example (needs registry access)
+	@$(TERRAFORM) init -backend=false -input=false >/dev/null || exit 1
+	@$(TERRAFORM) validate || exit 1
 	@for dir in $(EXAMPLES); do \
 		echo "==> $$dir"; \
 		$(TERRAFORM) -chdir=$$dir init -backend=false -input=false >/dev/null || exit 1; \

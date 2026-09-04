@@ -8,15 +8,36 @@
 #
 # The map is typed `any` on purpose, so that different pools can override
 # different subsets of keys without having to spell out a full object type.
+# A typed `map(object({...optional()}))` would not be an improvement here:
+# Terraform's type conversion silently *drops* object attributes that are not
+# part of the declared type, so a misspelled key would still disappear without
+# an error. The validation below is what actually catches typos, and it has to
+# list the supported keys inline because a validation condition cannot read a
+# local value.
 # ---------------------------------------------------------------------------
 
 variable "node_pools" {
-  description = "Map of node pool name to per-pool overrides. Keys become the AME node pool names and are used for the Kubernetes node role label. Supported override keys are `node_size`, `node_count`, `labels`, `annotations`, `enable_auto_healing`, `enable_multi_availability_zones` and `availability_zone`; any key a pool omits falls back to the matching `default_*` variable. Set this to `{}` to create a cluster with no node pools."
+  description = "Map of node pool name to per-pool overrides. Keys become the AME node pool names and are used for the Kubernetes node role label. Supported override keys are `node_size`, `node_count`, `labels`, `annotations`, `enable_auto_healing`, `enable_multi_availability_zones` and `availability_zone`; any key a pool omits falls back to the matching `default_*` variable. Unsupported keys are rejected at plan time rather than silently ignored. Set this to `{}` to create a cluster with no node pools."
   type        = any
   default = {
     ingress = {}
     worker  = {}
     data    = {}
+  }
+
+  validation {
+    condition = alltrue([
+      for name, pool in var.node_pools : length(setsubtract(keys(pool), [
+        "node_size",
+        "node_count",
+        "labels",
+        "annotations",
+        "enable_auto_healing",
+        "enable_multi_availability_zones",
+        "availability_zone",
+      ])) == 0
+    ])
+    error_message = "Each node_pools entry may only use the keys node_size, node_count, labels, annotations, enable_auto_healing, enable_multi_availability_zones and availability_zone. Node pool settings such as autoscaling, taints, upgrade_strategy and security_updates_on_join are not reachable through this module yet - declare those pools with the acloud_nodepool resource instead."
   }
 }
 
@@ -49,10 +70,22 @@ variable "default_node_pool_auto_healing" {
   default     = true
 }
 
+variable "default_availability_zone" {
+  description = "Availability zone used by single-zone node pools that do not set `availability_zone`, for example `eu-west-1a`. Only has an effect on pools where multi-AZ is off; multi-zone pools always fan out over every zone in the region. Leave null to let AME place the pool. This is the correctly spelled replacement for `default_availablity_zone`; when both are set, this one wins."
+  type        = string
+  default     = null
+}
+
 variable "default_availablity_zone" {
-  description = "Availability zone used by single-zone node pools that do not set `availability_zone`, for example `eu-west-1a`. Only has an effect on pools where multi-AZ is off; multi-zone pools always fan out over every zone in the region. The empty default lets AME place the pool. Note: the misspelling is preserved for backwards compatibility."
+  description = "DEPRECATED, and misspelled - use `default_availability_zone` instead, which does the same thing. Kept so that existing configurations keep working; it is only consulted when `default_availability_zone` is null, and it will be removed in a future major release."
   type        = string
   default     = ""
+}
+
+locals {
+  # The correctly spelled input wins; the misspelled one remains the fallback
+  # so that callers written against earlier versions keep working unchanged.
+  default_availability_zone = var.default_availability_zone != null ? var.default_availability_zone : var.default_availablity_zone
 }
 
 # One `avisi-cloud/nodepool/acloud` module instance per entry in `node_pools`.
@@ -61,6 +94,16 @@ variable "default_availablity_zone" {
 # `acloud_nodepool` per availability zone in the region, otherwise a single
 # pool in `availability_zone`. It also pins `min_size` and `max_size` to
 # `node_count`, so pools created through this module do not autoscale.
+#
+# KNOWN BREAKAGE, and the reason this pin has to move before the next release:
+# nodepool 0.1.0 never sets `upgrade_strategy` on the `acloud_nodepool`
+# resource. Provider releases from 0.8.0 onwards parse that attribute
+# unconditionally when creating a pool and reject the empty string an unset
+# value produces, so `terraform apply` fails with
+#   cannot parse upgradeStrategy: unsupported upgrade strategy:
+# Nodepool 0.2.0 fixes this by always sending a valid strategy. Bumping the
+# version below to 0.2.0 once it is published is what carries the fix into this
+# module; it cannot be fixed here.
 #
 # Resulting state addresses look like:
 #   module.nodepool["worker"].acloud_nodepool.pool["eu-west-1a"]
@@ -82,5 +125,5 @@ module "nodepool" {
   annotations                     = try(each.value.annotations, var.default_node_annotations, {})
   enable_auto_healing             = try(each.value.enable_auto_healing, var.default_node_pool_auto_healing, false)
   enable_multi_availability_zones = try(each.value.enable_multi_availability_zones, var.enable_multi_availability_zones, true)
-  availability_zone               = try(each.value.availability_zone, var.default_availablity_zone, "")
+  availability_zone               = try(each.value.availability_zone, local.default_availability_zone, "")
 }

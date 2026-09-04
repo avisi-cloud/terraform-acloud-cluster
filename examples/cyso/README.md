@@ -55,12 +55,12 @@ node_pools = {
 }
 ```
 
-> [!NOTE]
+> **Note:**
 > Cilium and network encryption do not combine: `enable_network_encryption` configures the CNI to
 > encrypt node-to-node traffic and is only supported by Calico. Compare with
 > [`examples/aws`](../aws), which keeps Calico and turns encryption on.
 
-> [!NOTE]
+> **Note:**
 > On a private cluster there is no public IP on the nodes, so a NodePort has to be reached through
 > the node's **internal** address. Provisioning also takes longer, because AME creates the NAT
 > gateway and its networking first. See
@@ -97,7 +97,7 @@ Run `make docs` after changing any variable, output, resource or module block.
 
 | Name | Version |
 | ---- | ------- |
-| <a name="requirement_acloud"></a> [acloud](#requirement\_acloud) | >= 0.10.1 |
+| <a name="requirement_acloud"></a> [acloud](#requirement\_acloud) | >= 0.10.0 |
 
 
 

@@ -83,7 +83,7 @@ variable "enable_private_cluster" {
 }
 
 variable "enable_network_encryption" {
-  description = "Enable encryption of pod-to-pod traffic at the cluster network layer. This is a CNI feature and is only supported by Calico; it has a measurable performance impact."
+  description = "Enable encryption of pod-to-pod traffic at the cluster network layer. This is a CNI feature that **only Calico implements**, and it has a measurable performance impact. It has no effect on a Cilium cluster, and because an unset `cni` does not reliably resolve to Calico, leaving this at its default of `true` is not by itself enough to get encrypted traffic: set `cni = \"calico\"` explicitly as well. The default is `true` to match the provider's own default and to avoid silently turning encryption off for existing clusters."
   type        = bool
   default     = true
 }
@@ -91,18 +91,20 @@ variable "enable_network_encryption" {
 # ---------------------------------------------------------------------------
 # Cluster metadata and policy
 #
-# All optional and defaulting to null, which leaves the AME default in place
-# and keeps existing callers' plans clean.
+# All optional and defaulting to null, which keeps existing callers' plans
+# clean. Note that null does not always mean "let AME decide": the provider
+# supplies its own default for several of these before the request is sent.
+# Where that matters it is called out on the variable itself.
 # ---------------------------------------------------------------------------
 
 variable "description" {
-  description = "Human-readable description of the cluster, shown in the Avisi Cloud Console. Useful for telling Avisi Cloud support what the cluster is for."
+  description = "Human-readable description of the cluster, shown in the Avisi Cloud Console. Note that the provider only sends this when the cluster is created; it is not part of the update payload, so editing it later has no effect until the cluster is replaced."
   type        = string
   default     = null
 }
 
 variable "cni" {
-  description = "Container Network Interface plugin for the cluster: `calico` (the AME default), `cilium`, or `custom` to bring your own. Cilium uses eBPF and adds Layer 7 load balancing and richer observability; Calico is required if you want `enable_network_encryption`. Values are case-insensitive. Leave null to use the AME default."
+  description = "Container Network Interface plugin for the cluster: `calico`, `cilium`, or `custom` to bring your own. Cilium uses eBPF and adds Layer 7 load balancing and richer observability; Calico is the only plugin that supports `enable_network_encryption`. Values are case-insensitive. Leave null to let AME choose, but be aware that which plugin that gets you is currently ambiguous: the AME product documentation states Calico is the default, while the platform API has defaulted an omitted CNI to Cilium since early 2024. Set this explicitly whenever the choice matters to you - in particular when you rely on network encryption. Note also that the provider does not send this attribute when it updates an existing cluster, so changing it afterwards may not take effect."
   type        = string
   default     = null
 
@@ -113,7 +115,7 @@ variable "cni" {
 }
 
 variable "pod_security_standards_profile" {
-  description = "Default Kubernetes Pod Security Standards profile enforced in the cluster: `privileged` (unrestricted), `baseline` (blocks known privilege escalations) or `restricted` (least privilege, recommended). Namespaces can relax or tighten this individually with `pod-security.kubernetes.io/*` labels. Values are case-insensitive. Leave null to use the AME default."
+  description = "Default Kubernetes Pod Security Standards profile enforced in the cluster: `privileged` (unrestricted), `baseline` (blocks known privilege escalations) or `restricted` (least privilege, and what AME recommends for all clusters). Namespaces can relax or tighten this individually with `pod-security.kubernetes.io/*` labels. Values are case-insensitive. **Leaving this null does not give you an AME-chosen default**: the provider substitutes its own default of `privileged`, the least restrictive profile, and sends that. AME would fall back to `baseline` if nothing were sent at all, but the provider never lets that happen. Set this explicitly - `restricted` unless you know you need otherwise."
   type        = string
   default     = null
 
@@ -124,13 +126,13 @@ variable "pod_security_standards_profile" {
 }
 
 variable "delete_protection" {
-  description = "Block deletion of the cluster until the protection is lifted. Note that Terraform can still remove the resource from state; this guards against the cluster being deleted in AME. Leave null to use the AME default. Requires provider >= 0.10.0."
+  description = "Intended to block deletion of the cluster in AME until the protection is lifted. **Currently inert: do not rely on it.** The attribute exists in the provider's schema from 0.10.0 onwards, but the provider does not send it when creating a cluster, does not read it back, and does not send it on update - so setting it here changes nothing on the platform. It is exposed so that configurations are ready for a provider release that implements it. Set delete protection in the Console if you need it today. Note that Terraform can remove the resource from state regardless; this was only ever a guard on the AME side."
   type        = bool
   default     = null
 }
 
 variable "cluster_state_wait_seconds" {
-  description = "How long the provider waits for the cluster to reach its desired state before timing out. Raise it when provisioning is slow, for example on a private cluster where extra cloud resources are created first. Leave null to use the provider default."
+  description = "How long the provider waits for the cluster to reach its desired state before timing out. Raise it when provisioning is slow, for example on a private cluster where extra cloud resources are created first. Leave null to use the provider default of 600 seconds."
   type        = number
   default     = null
 }
@@ -150,7 +152,7 @@ variable "update_channel" {
 }
 
 variable "enable_auto_upgrade" {
-  description = "Let AME upgrade the cluster automatically towards its `update_channel`, inside the window of `maintenance_schedule_id`. Without a maintenance schedule there is no window for an upgrade to run in, so set both together. Leave null to use the AME default. Requires provider >= 0.6.0."
+  description = "Let AME upgrade the cluster automatically towards its `update_channel`, inside the window of `maintenance_schedule_id`. Without a maintenance schedule there is no window for an upgrade to run in, so set both together. Leave null to send nothing, which the provider turns into `false`. Requires provider >= 0.6.0."
   type        = bool
   default     = null
 }
@@ -164,12 +166,13 @@ variable "maintenance_schedule_id" {
 # ---------------------------------------------------------------------------
 # Add-ons
 #
-# Managed components AME installs and keeps up to date inside the cluster.
-# Keyed by add-on name; only `ingressController` takes custom values.
+# Managed components AME installs and keeps up to date inside the cluster,
+# keyed by add-on name. Most take no custom values; `ingressController` and
+# `kured` are the ones that do.
 # ---------------------------------------------------------------------------
 
 variable "addons" {
-  description = "Managed AME add-ons to configure, keyed by add-on name. Available names are `certManager`, `cloudNativePG`, `defaultNetworkPolicies`, `fluxOperator`, `gpu`, `ingressController`, `kured`, `logging`, `monitoring`, `nfs` and `sealedSecrets`. Each entry takes `enabled` (defaults to true) and `custom_values`, a string map that only `ingressController` currently uses, with the key `type` selecting the ingress implementation. Leave that key unset: the implementations it currently accepts are all being superseded, and an unset value follows whatever AME's current default is. Add-ons are managed by AME rather than by you, so do not also install them yourself. Requires provider >= 0.10.0."
+  description = "Managed AME add-ons to configure, keyed by add-on name. Available names are `certManager`, `cloudNativePG`, `defaultNetworkPolicies`, `fluxOperator`, `gpu`, `ingressController`, `kured`, `logging`, `monitoring`, `nfs` and `sealedSecrets`. Each entry takes `enabled` (defaults to true) and `custom_values`, a string map whose accepted keys depend on the add-on: `ingressController` takes `type`, which selects the ingress implementation, and `kured` takes reboot-window settings. Leave `ingressController`'s `type` unset: the implementations it currently accepts are all being superseded, and an unset value follows whatever AME's current default is. Add-ons are managed by AME rather than by you, so do not also install them yourself. Requires provider >= 0.10.0."
   type = map(object({
     enabled       = optional(bool, true)
     custom_values = optional(map(string))

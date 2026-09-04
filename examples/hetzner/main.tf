@@ -6,7 +6,7 @@ terraform {
   required_providers {
     acloud = {
       source  = "avisi-cloud/acloud"
-      version = ">= 0.10.1"
+      version = ">= 0.10.0"
     }
   }
 }
@@ -81,9 +81,11 @@ module "cluster" {
   default_node_size  = "cx33"
   default_node_count = 1
 
-  # Labels applied to every pool that does not override them.
+  # Labels applied to every pool that does not override them. Use your own
+  # label keys here: the `avisi.cloud` namespaces are used by the platform
+  # itself, so do not invent keys under them.
   default_node_labels = {
-    "topology.avisi.cloud/managed-by" = "terraform"
+    "managed-by" = "terraform"
   }
 
   node_pools = {

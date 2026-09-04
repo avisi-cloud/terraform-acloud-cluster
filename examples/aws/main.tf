@@ -6,7 +6,7 @@ terraform {
   required_providers {
     acloud = {
       source  = "avisi-cloud/acloud"
-      version = ">= 0.10.1"
+      version = ">= 0.10.0"
     }
   }
 }
@@ -58,7 +58,7 @@ variable "cloud_provider" {
 }
 
 variable "region" {
-  description = "AWS region for the cluster."
+  description = "AWS region for the cluster. Note that in AME a multi-zone AWS region may be published under its own region slug rather than the plain AWS name, so the region that fans node pools out over three zones is not necessarily `eu-west-1`. Run `acloud cloud-providers get` and pick the region slug that actually lists availability zones for your organisation."
   type        = string
   default     = "eu-west-1"
 }
@@ -101,15 +101,25 @@ module "cluster" {
   enable_high_available_control_plane = true
   enable_network_encryption           = true
 
-  # `cni` is left unset, so the cluster uses the AME default, Calico. That is
-  # what makes enable_network_encryption above valid - it is a Calico-only
-  # feature. See examples/cyso for the Cilium alternative.
-  #
+  # Calico is set explicitly, and deliberately so: network encryption above is
+  # a Calico-only feature, and an unset `cni` does not reliably resolve to
+  # Calico - AME's product documentation and its API disagree about what the
+  # default is. Pinning the plugin is what makes the encryption setting
+  # meaningful. See examples/cyso for the Cilium alternative, which turns
+  # encryption off.
+  cni = "calico"
+
   # Least-privilege pod defaults; namespaces can relax the profile individually
-  # with pod-security.kubernetes.io/* labels.
+  # with pod-security.kubernetes.io/* labels. Worth setting explicitly: leaving
+  # it unset gets you the provider's own default of `privileged`, not a
+  # least-privilege one.
   pod_security_standards_profile = "restricted"
 
-  description       = "Production order processing"
+  description = "Production order processing"
+
+  # Set for intent, but be aware it currently does nothing: the provider never
+  # sends delete_protection to AME. Enable delete protection in the Console if
+  # you actually depend on it.
   delete_protection = true
 
   # Record the channel on the cluster so AME knows what to upgrade towards,

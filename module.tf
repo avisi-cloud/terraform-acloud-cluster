@@ -1,7 +1,12 @@
 terraform {
+  # `optional()` object attributes in the `addons` variable need Terraform 1.3.
+  required_version = ">= 1.3.0"
+
   required_providers {
     acloud = {
-      version = ">= 0.10.1"
+      # 0.10.0 is the release that added the `addons` block and
+      # `delete_protection`. 0.10.1 changed only the provider's own examples.
+      version = ">= 0.10.0"
       source  = "avisi-cloud/acloud"
     }
   }
@@ -14,16 +19,6 @@ data "acloud_cloud_account" "account" {
   organisation   = var.organisation_slug
   display_name   = var.cloud_account_name
   cloud_provider = var.cloud_provider
-}
-
-# NOTE: this data source is not referenced anywhere in the root module. The
-# node pool fan-out over availability zones happens inside the
-# `avisi-cloud/nodepool/acloud` child module, which resolves the zones itself.
-# It is kept for backwards compatibility; see "Known rough edges" in README.md.
-data "acloud_cloud_provider_availability_zones" "zones" {
-  organisation   = var.organisation_slug
-  cloud_provider = var.cloud_provider
-  region         = var.region
 }
 
 # Only queried when `kubernetes_version` is null: the channel resolves to the
@@ -71,10 +66,12 @@ resource "acloud_cluster" "cluster" {
 }
 
 output "cluster" {
-  description = "The created AME cluster: `id` is the cluster UUID used by the API and the Console, `version` is the AME Kubernetes version that was actually provisioned (useful when the version came from an update channel)."
+  description = "The created AME cluster. `id` is the cluster UUID used by the API and the Console; `slug` is the identifier that node pools, `acloud` commands and the `acloud_nodepool` resource address the cluster by; `version` is the AME Kubernetes version that was actually provisioned, which is the value to read when the version came from an update channel; `status` is the cluster's lifecycle state as AME last reported it."
 
   value = {
     id      = acloud_cluster.cluster.id
+    slug    = acloud_cluster.cluster.slug
     version = acloud_cluster.cluster.version
+    status  = acloud_cluster.cluster.status
   }
 }

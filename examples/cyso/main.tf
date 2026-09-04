@@ -7,7 +7,7 @@ terraform {
   required_providers {
     acloud = {
       source  = "avisi-cloud/acloud"
-      version = ">= 0.10.1"
+      version = ">= 0.10.0"
     }
   }
 }
@@ -99,6 +99,8 @@ module "cluster" {
   # stable outbound address. Cannot be changed after creation.
   enable_private_cluster = true
 
+  # Worth setting explicitly: leaving it unset gets you the provider's own
+  # default of `privileged`, not a least-privilege one.
   pod_security_standards_profile = "restricted"
 
   addons = {

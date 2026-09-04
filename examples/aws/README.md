@@ -8,7 +8,7 @@ Use this as the starting point for a real cluster, and read the machine count be
 
 ## What it creates
 
-`eu-west-1` exposes three availability zones in AME (confirm yours with `acloud cloud-providers get`).
+The zone list comes from AME, not from AWS: a region only fans out if AME publishes availability zones for that exact region slug, and a multi-zone AWS region may be published under its own slug. Confirm with `acloud cloud-providers get` before assuming a count. The figures below assume a three-zone region.
 Because multi-AZ is enabled, each multi-zone pool is created **once per zone**:
 
 | Pool | Zones | `node_count` | Machines |
@@ -23,7 +23,7 @@ the `restricted`
 Pod Security Standards profile, delete protection, four managed add-ons, and automatic upgrades
 inside a Sunday-night maintenance window - and the `acloud_maintenance_schedule` that defines it.
 
-> [!NOTE]
+> **Note:**
 > `node_count` is nodes **per availability zone** for multi-zone pools. Halve the counts, or pin a
 > pool to one zone as `data` does, if that is more capacity than you want.
 
@@ -78,13 +78,13 @@ addons = {
 
 AME installs and updates these, so do not deploy them yourself as well.
 
-> [!WARNING]
+> **Warning:**
 > `ingressController` sets no `custom_values.type` deliberately. The ingress implementations
 > available today are all being superseded - `ingress-nginx` is being deprecated and `traefik` is
 > being replaced by a newer managed controller - so pinning a type would pin this cluster to
 > something on its way out. Leaving it unset follows whatever AME's current default is.
 
-> [!NOTE]
+> **Note:**
 > Enabling `ingressController` provisions a cloud load balancer through a Kubernetes Service, and
 > needs at least one node pool to exist first. Disabling it later releases that load balancer's IP
 > address.
@@ -123,13 +123,13 @@ Run `make docs` after changing any variable, output, resource or module block.
 
 | Name | Version |
 | ---- | ------- |
-| <a name="requirement_acloud"></a> [acloud](#requirement\_acloud) | >= 0.10.1 |
+| <a name="requirement_acloud"></a> [acloud](#requirement\_acloud) | >= 0.10.0 |
 
 ### Providers
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_acloud"></a> [acloud](#provider\_acloud) | 0.12.0 |
+| <a name="provider_acloud"></a> [acloud](#provider\_acloud) | >= 0.10.0 |
 
 ### Modules
 
@@ -154,7 +154,7 @@ Run `make docs` after changing any variable, output, resource or module block.
 | <a name="input_acloud_api"></a> [acloud\_api](#input\_acloud\_api) | Avisi Cloud API base URL. Leave null to use the public API at https://api.avisi.cloud. | `string` | `null` | no |
 | <a name="input_cloud_provider"></a> [cloud\_provider](#input\_cloud\_provider) | Cloud provider slug for AWS. | `string` | `"aws"` | no |
 | <a name="input_cluster_name"></a> [cluster\_name](#input\_cluster\_name) | Display name for the cluster. | `string` | `"aws-production"` | no |
-| <a name="input_region"></a> [region](#input\_region) | AWS region for the cluster. | `string` | `"eu-west-1"` | no |
+| <a name="input_region"></a> [region](#input\_region) | AWS region for the cluster. Note that in AME a multi-zone AWS region may be published under its own region slug rather than the plain AWS name, so the region that fans node pools out over three zones is not necessarily `eu-west-1`. Run `acloud cloud-providers get` and pick the region slug that actually lists availability zones for your organisation. | `string` | `"eu-west-1"` | no |
 | <a name="input_single_zone_availability_zone"></a> [single\_zone\_availability\_zone](#input\_single\_zone\_availability\_zone) | Availability zone the `data` node pool is pinned to. Must be a zone within `region`. | `string` | `"eu-west-1a"` | no |
 
 ### Outputs
