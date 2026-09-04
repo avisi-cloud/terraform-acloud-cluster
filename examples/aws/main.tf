@@ -79,9 +79,8 @@ module "cluster" {
   cloud_account_name = var.cloud_account_name
   region             = var.region
 
-  # `regular` is the channel AME recommends for production workloads. Moving to
-  # a new Kubernetes minor version is a deliberate change of this value.
-  update_channel_name = "regular"
+  # Kubernetes version comes from the module default: the "regular" update
+  # channel, which is what AME recommends for production workloads.
 
   # Multi-AZ cannot be changed after the cluster is created, so decide it here.
   # It also fans every multi-zone node pool out across all zones in the region.

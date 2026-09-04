@@ -73,7 +73,7 @@ module "cluster" {
   cloud_account_name = var.cloud_account_name
   region             = var.region
 
-  update_channel_name = "regular"
+  # Kubernetes version comes from the module default: the "regular" channel.
 
   # Single zone: one AME node pool per entry in `node_pools`.
   enable_multi_availability_zones = false

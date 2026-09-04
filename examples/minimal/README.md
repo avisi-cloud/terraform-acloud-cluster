@@ -26,9 +26,8 @@ the region, so a three-zone region would give you three nodes instead of one.
 module "cluster" {
   source = "../../"          # use "avisi-cloud/cluster/acloud" outside this repo
 
-  # Track the channel AME recommends for production instead of the module's
-  # end-of-life v1.28 default.
-  update_channel_name = "regular"
+  # No update_channel_name: the module default, "regular", is the channel
+  # AME recommends for production workloads.
 
   enable_multi_availability_zones = false
 
@@ -43,6 +42,11 @@ module "cluster" {
 
 `node_pools = { worker = {} }` is the empty-override form: the pool inherits `default_node_size`,
 `default_node_count` and every other `default_*` value from the module.
+
+There is no Kubernetes version anywhere in this example. `update_channel_name` defaults to
+`regular`, the channel AME recommends for production, so the module resolves a supported version for
+you. Pin `update_channel_name` to a series (`v1.35`) or set `kubernetes_version` when you need to
+control that yourself.
 
 ## Prerequisites
 

@@ -76,9 +76,8 @@ module "cluster" {
   cloud_account_name = var.cloud_account_name
   region             = var.region
 
-  # Track the channel AME recommends for production instead of the module's
-  # end-of-life v1.28 default.
-  update_channel_name = "regular"
+  # No update_channel_name here on purpose: the module default, "regular",
+  # is the channel AME recommends for production workloads.
 
   # Single zone keeps this example to exactly one node pool with one node.
   enable_multi_availability_zones = false

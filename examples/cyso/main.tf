@@ -81,7 +81,7 @@ module "cluster" {
   cloud_account_name = var.cloud_account_name
   region             = var.region
 
-  update_channel_name = "regular"
+  # Kubernetes version comes from the module default: the "regular" channel.
 
   # AMS2 exposes three availability zones. With multi-AZ on, each multi-zone
   # node pool below is created once per zone, so `system` provisions three

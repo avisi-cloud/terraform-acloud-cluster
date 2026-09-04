@@ -26,8 +26,7 @@ module "cluster" {
   cloud_account_name = "Production AWS"
   region             = "eu-west-1"
 
-  update_channel_name = "regular"
-  default_node_size   = "t3.medium"
+  default_node_size = "t3.medium"
 
   node_pools = {
     worker = { node_count = 2 }
@@ -371,17 +370,44 @@ Channels come in two shapes:
 
 | Channel | Shape | Use |
 | --- | --- | --- |
-| `stable`, `regular`, `preview` | Rolling - follows a Kubernetes minor series that AME moves forward over time | **`regular` is what AME recommends for production workloads** |
-| `v1.34`, `v1.35`, ... | Pinned to one Kubernetes minor series, still receiving patch releases | Stay on a minor version and adopt new ones deliberately |
+| `regular` | Rolling | **The module default, and what AME recommends for production workloads** |
+| `stable` | Rolling, one minor series behind `regular` | Trail the recommendation deliberately |
+| `preview` | Rolling, ahead of `regular` | Try the next Kubernetes version on staging first |
+| `v1.34`, `v1.35`, ... | Pinned to one Kubernetes minor series, still receiving patch releases | Adopt minor versions on your own schedule |
 
 Which Kubernetes minor each rolling channel currently points at is published in the
-[release notes](https://docs.avisi.cloud/docs/product/overview/release-notes).
+[release notes](https://docs.avisi.cloud/docs/product/overview/release-notes) - `stable` trails
+`regular`, which trails `preview`.
 
-> [!WARNING]
-> The module default is `update_channel_name = "v1.28"`, which is an **end-of-life** Kubernetes
-> series under the [AME lifecycle policy](https://docs.avisi.cloud/docs/product/overview/kubernetes/lifecycle-policy).
-> The default is kept for backwards compatibility with existing callers - always set this input
-> explicitly for a new cluster. Every example in this repository sets `update_channel_name = "regular"`.
+The default is `regular`, so a cluster you create without touching this input runs the version AME
+recommends for production - there is no Kubernetes version to fill in at all.
+
+> [!NOTE]
+> A rolling channel means the version is not frozen. When AME advances `regular` to the next minor
+> series, the next `terraform plan` shows a version diff and `apply` performs a **minor** upgrade,
+> which recycles nodes. If you would rather adopt minor versions on your own schedule, pin the
+> channel to a series (`update_channel_name = "v1.35"`) or pin the version outright with
+> `kubernetes_version`. See [how upgrades show up in Terraform](#how-upgrades-show-up-in-terraform).
+
+#### Migrating from the old `v1.28` default
+
+Earlier versions of this module defaulted `update_channel_name` to `v1.28`. If your configuration
+never set the input, bumping the module moves the target from Kubernetes 1.28 to whatever `regular`
+points at today - several minor versions ahead. **AME only supports upgrading one minor version at a
+time**, so do not apply that as a single step:
+
+```hcl
+# 1. Bump the module and keep the old behaviour, so the plan is a no-op.
+update_channel_name = "v1.28"
+
+# 2. Then step forward one series per apply: "v1.29", "v1.30", ...
+#    checking the release notes for each target version.
+
+# 3. Once you reach the series `regular` points at, drop the input entirely
+#    and let the default take over.
+```
+
+Configurations that already set `update_channel_name` or `kubernetes_version` are unaffected.
 
 ### How upgrades show up in Terraform
 
@@ -455,23 +481,34 @@ terraform apply -var organisation_slug=... -var environment_slug=... -var cloud_
 
 The module exposes a deliberately small surface. Everything below exists in the
 [`avisi-cloud/acloud` provider](https://registry.terraform.io/providers/avisi-cloud/acloud/latest/docs)
-but is not passed through:
+but is not passed through. The list is a diff of the provider schema against what the module actually
+assigns, verified against provider **v0.12.0**; the last column is the oldest provider release that
+exposes the attribute, which matters because this module's floor is only `>= 0.5.0`.
 
-| Area | Provider attribute | Where |
-| --- | --- | --- |
-| Cluster add-ons (cert-manager, NFS, ingress, logging, ...) | `addons { name, enabled, custom_values }` | `acloud_cluster` |
-| CNI choice (Calico / Cilium) | `cni` | `acloud_cluster` |
-| Pod Security Standards profile | `pod_security_standards_profile` | `acloud_cluster` |
-| Auto-upgrade and maintenance windows | `enable_auto_upgrade`, `maintenance_schedule_id` | `acloud_cluster` |
-| Cluster follows a channel server-side | `update_channel` | `acloud_cluster` |
-| Delete protection | `delete_protection` | `acloud_cluster` |
-| Stop / start a cluster | `stopped` | `acloud_cluster` |
-| Description | `description` | `acloud_cluster` |
-| Node pool autoscaling | `auto_scaling`, `min_size`, `max_size` | `acloud_nodepool` |
-| Per-pool upgrade strategy | `upgrade_strategy` | `acloud_nodepool` |
-| Node taints | `taints { key, value, effect }` | `acloud_nodepool` |
-| Security updates on join | `security_updates_on_join` | `acloud_nodepool` |
-| Creating environments, cloud accounts, maintenance schedules | `acloud_environment`, `acloud_cloud_account`, `acloud_maintenance_schedule` | resources |
+| Area | Provider attribute | Resource | Available since |
+| --- | --- | --- | --- |
+| Cluster add-ons (cert-manager, NFS, ingress, logging, ...) | `addons { name, enabled, custom_values }` | `acloud_cluster` | v0.10.0 |
+| CNI choice (Calico / Cilium) | `cni` | `acloud_cluster` | v0.5.0 or earlier |
+| Pod Security Standards profile | `pod_security_standards_profile` | `acloud_cluster` | v0.5.0 or earlier |
+| Cluster follows a channel server-side | `update_channel` | `acloud_cluster` | v0.5.0 or earlier |
+| Cluster description | `description` | `acloud_cluster` | v0.5.0 or earlier |
+| Wait timeout for cluster readiness | `cluster_state_wait_seconds` | `acloud_cluster` | v0.5.0 or earlier |
+| Auto-upgrade and maintenance windows | `enable_auto_upgrade`, `maintenance_schedule_id` | `acloud_cluster` | v0.6.0 |
+| Delete protection | `delete_protection` | `acloud_cluster` | v0.10.0 |
+| Node pool autoscaling | `auto_scaling`, `min_size`, `max_size` | `acloud_nodepool` | v0.5.0 or earlier |
+| Node taints | `taints { key, value, effect }` | `acloud_nodepool` | v0.5.0 or earlier |
+| Per-pool upgrade strategy | `upgrade_strategy` | `acloud_nodepool` | v0.8.0 |
+| Security updates on join | `security_updates_on_join` | `acloud_nodepool` | **v0.12.0** |
+| Creating environments, cloud accounts, maintenance schedules | `acloud_environment`, `acloud_cloud_account`, `acloud_maintenance_schedule` | resources | - |
+
+"v0.5.0 or earlier" means the attribute is already present in v0.5.0, this module's provider floor,
+so passing it through would not require raising that floor. `security_updates_on_join` is the
+exception: it landed in **v0.12.0**, so exposing it means every consumer of this module needs a
+provider that new.
+
+> [!NOTE]
+> `acloud_cluster.stopped` also exists but is **deprecated** in the provider, so it is deliberately
+> not listed above. Do not build new configuration on it.
 
 You do not have to choose. Add provider resources alongside the module - the module's `cluster`
 output gives you the cluster identity, and the cluster slug is derived from `cluster_name`:
@@ -519,7 +556,7 @@ Honest list of things that are true of the current module and worth knowing befo
 
 | | Impact | Workaround |
 | --- | --- | --- |
-| `update_channel_name` defaults to `v1.28`, an EOL series | A cluster created without setting it targets an unsupported Kubernetes version | Always set `update_channel_name` (or `kubernetes_version`) explicitly |
+| `update_channel_name` defaults to the rolling `regular` channel | Version is not frozen: when AME advances the channel, the next plan proposes a minor upgrade that recycles nodes | Pin a series (`v1.35`) or a version (`kubernetes_version`) if you want to control when that happens |
 | `default_availablity_zone` is misspelled | Cosmetic, but easy to mistype as `default_availability_zone` and then silently get no effect | Use the misspelled name; renaming it would be a breaking change |
 | `data.acloud_cloud_provider_availability_zones.zones` in `module.tf` is unused | An extra API call on every plan, and a data source on the Registry's resource list that the module never reads | Harmless. Removing it is a one-line change |
 | Node pools created through this module cannot autoscale | `min_size` and `max_size` are pinned to `node_count` by the child module | Declare `acloud_nodepool` directly for pools that need autoscaling |
@@ -655,7 +692,7 @@ Run `make docs` after changing any variable, output, resource or module block.
 | <a name="input_enable_private_cluster"></a> [enable\_private\_cluster](#input\_enable\_private\_cluster) | Provision the cluster without public IP addresses on its nodes, routing outbound traffic through a NAT gateway so nodes share a static egress IP. Availability and exact behaviour are cloud-provider specific, and it makes provisioning slower because extra cloud resources are created. Can only be set at creation time. | `bool` | `false` | no |
 | <a name="input_kubernetes_version"></a> [kubernetes\_version](#input\_kubernetes\_version) | Exact AME Kubernetes version to run, for example `v1.35.6-u-ame.4`. Leave this `null` (the default) to resolve the version from `update_channel_name` instead. Setting it pins the cluster: the version only changes when you change this value. | `string` | `null` | no |
 | <a name="input_node_pools"></a> [node\_pools](#input\_node\_pools) | Map of node pool name to per-pool overrides. Keys become the AME node pool names and are used for the Kubernetes node role label. Supported override keys are `node_size`, `node_count`, `labels`, `annotations`, `enable_auto_healing`, `enable_multi_availability_zones` and `availability_zone`; any key a pool omits falls back to the matching `default_*` variable. Set this to `{}` to create a cluster with no node pools. | `any` | <pre>{<br/>  "data": {},<br/>  "ingress": {},<br/>  "worker": {}<br/>}</pre> | no |
-| <a name="input_update_channel_name"></a> [update\_channel\_name](#input\_update\_channel\_name) | Name of the AME update channel used to resolve the Kubernetes version when `kubernetes_version` is null. Channels are either rolling (`stable`, `regular`, `preview`) or pinned to a Kubernetes minor series (`v1.34`, `v1.35`, ...). AME recommends `regular` for production. Note: the module default `v1.28` is an end-of-life series - set this explicitly for new clusters. | `string` | `"v1.28"` | no |
+| <a name="input_update_channel_name"></a> [update\_channel\_name](#input\_update\_channel\_name) | Name of the AME update channel used to resolve the Kubernetes version when `kubernetes_version` is null. Rolling channels (`stable`, `regular`, `preview`) follow a Kubernetes minor series that AME advances over time; pinned channels (`v1.34`, `v1.35`, ...) stay on one minor series and only receive patch releases. The default is `regular`, the channel AME recommends for production workloads, so a cluster gets a supported version without configuring anything. Because the channel resolves to a concrete version at plan time, a channel that has advanced shows up as a version diff on the next plan. | `string` | `"regular"` | no |
 
 ### Outputs
 

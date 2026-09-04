@@ -52,9 +52,9 @@ variable "kubernetes_version" {
 }
 
 variable "update_channel_name" {
-  description = "Name of the AME update channel used to resolve the Kubernetes version when `kubernetes_version` is null. Channels are either rolling (`stable`, `regular`, `preview`) or pinned to a Kubernetes minor series (`v1.34`, `v1.35`, ...). AME recommends `regular` for production. Note: the module default `v1.28` is an end-of-life series - set this explicitly for new clusters."
+  description = "Name of the AME update channel used to resolve the Kubernetes version when `kubernetes_version` is null. Rolling channels (`stable`, `regular`, `preview`) follow a Kubernetes minor series that AME advances over time; pinned channels (`v1.34`, `v1.35`, ...) stay on one minor series and only receive patch releases. The default is `regular`, the channel AME recommends for production workloads, so a cluster gets a supported version without configuring anything. Because the channel resolves to a concrete version at plan time, a channel that has advanced shows up as a version diff on the next plan."
   type        = string
-  default     = "v1.28"
+  default     = "regular"
 }
 
 # ---------------------------------------------------------------------------
