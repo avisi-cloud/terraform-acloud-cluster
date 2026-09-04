@@ -1,15 +1,21 @@
 terraform {
   required_providers {
     acloud = {
-      source = "avisi-cloud/acloud"
+      source  = "avisi-cloud/acloud"
+      version = ">= 0.5.0"
     }
   }
 }
 
 variable "acloud_token" {
-  sensitive = true
+  description = "Avisi Cloud Personal Access Token."
+  type        = string
+  sensitive   = true
 }
+
 variable "acloud_api" {
+  description = "Avisi Cloud API base URL."
+  type        = string
 }
 
 provider "acloud" {
@@ -18,33 +24,36 @@ provider "acloud" {
 }
 
 variable "organisation_slug" {
-  description = "A unique identifier for the organisation. This is used to distinguish resources across different organisations. Required."
+  description = "Slug of the Avisi Cloud organisation that owns the example environment."
   type        = string
   nullable    = false
 }
 
 variable "environment_slug" {
-  description = "A unique identifier for the environment within the organisation. Required."
+  description = "Slug of the Avisi Cloud environment where the example cluster is created."
   type        = string
   nullable    = false
 }
 
 variable "cloud_account_name" {
-  description = "name of the cloud account within the Avisi Cloud Console used for provisioning the cluster. Required."
+  description = "Display name of the AWS cloud account in Avisi Cloud Console."
+  type        = string
 }
 
 variable "cluster_name" {
-  default = "example"
+  description = "Display name for the example cluster."
+  type        = string
+  default     = "example"
 }
 
 variable "region" {
   default     = "eu-central-1"
-  description = "AWS region"
+  description = "AWS region for the example cluster."
 }
 
 variable "cloud_provider" {
   default     = "aws"
-  description = "Slug of the AWS cloud provider"
+  description = "Avisi Cloud provider slug for AWS."
 }
 
 module "cluster" {

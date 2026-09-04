@@ -39,6 +39,8 @@ resource "acloud_cluster" "cluster" {
 }
 
 output "cluster" {
+  description = "Identifier and resolved Kubernetes version of the created AME cluster."
+
   value = {
     id      = acloud_cluster.cluster.id
     version = acloud_cluster.cluster.version

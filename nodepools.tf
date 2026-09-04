@@ -6,37 +6,40 @@ variable "node_pools" {
     data    = {}
   }
   type        = any
-  description = "Definition of the Cluster node pools"
+  description = "Map of node pool names to per-pool overrides. Supported override keys are node_size, node_count, labels, annotations, enable_auto_healing, enable_multi_availability_zones, and availability_zone."
 }
 
 variable "default_node_size" {
   type        = string
-  description = "Deafult Node Size for nodes"
-
+  description = "Default cloud provider node type or instance size for node pools that do not set node_size."
 }
+
 variable "default_node_count" {
   type        = number
-  description = "Default number of machines in a node pool"
+  description = "Default number of machines in node pools that do not set node_count."
   default     = 1
 }
 
 variable "default_node_labels" {
-  description = "Default custom node labels for nodes within a node pool"
+  description = "Default Kubernetes labels applied to nodes in node pools that do not set labels."
+  type        = map(string)
   default     = {}
 }
 
 variable "default_node_annotations" {
-  description = "Default custom node annotations for nodes within a node pool"
+  description = "Default Kubernetes annotations applied to nodes in node pools that do not set annotations."
+  type        = map(string)
   default     = {}
 }
 
 variable "default_node_pool_auto_healing" {
-  description = "Default node auto healing setting"
+  description = "Default auto-healing setting for node pools that do not set enable_auto_healing."
+  type        = bool
   default     = true
 }
 
 variable "default_availablity_zone" {
-  description = "The default availability zone for node pools"
+  description = "Default availability zone for node pools that do not set availability_zone. The variable name is misspelled for compatibility."
   type        = string
   default     = ""
 }
