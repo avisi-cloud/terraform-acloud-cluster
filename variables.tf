@@ -172,7 +172,7 @@ variable "maintenance_schedule_id" {
 # ---------------------------------------------------------------------------
 
 variable "addons" {
-  description = "Managed AME add-ons to configure, keyed by add-on name. Available names are `certManager`, `cloudNativePG`, `defaultNetworkPolicies`, `fluxOperator`, `gpu`, `ingressController`, `kured`, `logging`, `monitoring`, `nfs` and `sealedSecrets`. Each entry takes `enabled` (defaults to true) and `custom_values`, a string map whose accepted keys depend on the add-on: `ingressController` takes `type`, which selects the ingress implementation, and `kured` takes reboot-window settings. Leave `ingressController`'s `type` unset: the implementations it currently accepts are all being superseded, and an unset value follows whatever AME's current default is. Add-ons are managed by AME rather than by you, so do not also install them yourself. Requires provider >= 0.10.0."
+  description = "Managed AME add-ons, keyed by name. Each entry has `enabled` (default true) and optional `custom_values`. `ingressController.type` selects an available controller; `ingress-nginx` is deprecated and cannot be selected for new clusters. Existing ingress-nginx clusters are unaffected for now. See the module README for current migration guidance. Requires provider >= 0.10.0."
   type = map(object({
     enabled       = optional(bool, true)
     custom_values = optional(map(string))
