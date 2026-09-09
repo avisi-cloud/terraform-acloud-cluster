@@ -603,7 +603,7 @@ addons = {
 | `cloudNativePG` | The CloudNativePG operator for running PostgreSQL | Beta |
 | `fluxOperator` | The Flux operator, for GitOps delivery | Beta |
 | `gpu` | GPU device drivers and runtime configuration | Beta |
-| `ingressController` | A managed ingress controller and its load balancer | Beta - `ingress-nginx` is deprecated |
+| `ingressController` | A managed ingress controller and its load balancer | Deprecated - `ingress-nginx` is deprecated |
 | `kured` | Coordinated node reboots after OS patches | Beta |
 | `nfs` | An NFS provisioner for shared storage | Beta |
 | `sealedSecrets` | The Sealed Secrets controller | Beta |
