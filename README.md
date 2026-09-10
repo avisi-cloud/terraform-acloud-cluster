@@ -590,7 +590,7 @@ addons = {
   logging     = {}
   nfs         = { enabled = false }      # explicitly disabled
 
-  ingressController = {}                 # see the warning below - do not pin a type
+  ingressController = {}                 # see the ingress-nginx warning below
 }
 ```
 
@@ -603,40 +603,46 @@ addons = {
 | `cloudNativePG` | The CloudNativePG operator for running PostgreSQL | Beta |
 | `fluxOperator` | The Flux operator, for GitOps delivery | Beta |
 | `gpu` | GPU device drivers and runtime configuration | Beta |
-| `ingressController` | A managed ingress controller and its load balancer | Beta - **in flux, see below** |
+| `ingressController` | A managed ingress controller and its load balancer | Deprecated - `ingress-nginx` is deprecated |
 | `kured` | Coordinated node reboots after OS patches | Beta |
 | `nfs` | An NFS provisioner for shared storage | Beta |
 | `sealedSecrets` | The Sealed Secrets controller | Beta |
 
 Most add-ons take no `custom_values` at all. Two do: `ingressController` accepts a single key,
-`type`, which selects the ingress implementation (today `ingress-nginx` or `traefik` - but see the
-warning below), and `kured` accepts reboot-window settings (`forceReboot`, `rebootDays`,
+`type`, which selects an ingress implementation supported by the current AME version, and `kured`
+accepts reboot-window settings (`forceReboot`, `rebootDays`,
 `startTime`, `endTime`, `timeZone`). The `kured` keys are read from the platform's add-on service
 rather than from published documentation, so confirm them in the Console before depending on them.
 
-### The ingress controller add-on is changing
+### ingress-nginx is deprecated
 
 > **Warning:**
-> **Do not pin `custom_values.type` on the ingress controller add-on.**
+> **Do not configure `custom_values.type = "ingress-nginx"` for a new cluster.**
 >
-> Both implementations currently on offer are on their way out. `ingress-nginx` is being deprecated,
-> with restrictions on enabling it being introduced - so enabling it on a new cluster may already be
-> refused. `traefik` is the current default, but it is being superseded too: Avisi Cloud is working
-> on a newer, improved managed ingress controller.
+> The managed `ingress-nginx` controller is deprecated and can no longer be selected for new
+> clusters. Existing clusters that use it continue to run for now. Because upstream no longer
+> maintains ingress-nginx, it no longer receives upstream releases, bug fixes, or security fixes.
+> Avisi Cloud is preparing migration guidance for existing users.
 >
-> Leave `custom_values` unset and the cluster follows whatever AME's current default is, which is the
-> only choice that carries forward on its own:
->
-> ```hcl
-> addons = {
->   ingressController = {}
-> }
-> ```
->
-> Clusters already running one of these keep working. Before pinning anything explicitly, check the
-> [managed ingress controller documentation](https://docs.avisi.cloud/docs/product/overview/add-ons/managed-ingress-controller)
-> or the Console for what is current - this module intentionally does not validate the value, since
-> a hard block would break clusters legitimately still running an older implementation.
+> You may migrate to and operate an ingress controller of your choice. Do not disable the managed
+> add-on until you have planned the traffic cutover: disabling it removes its LoadBalancer Service
+> and releases its cloud-assigned IP address. See the
+> [deprecation announcement](https://docs.avisi.cloud/blog/deprecating-ingress-nginx) for the current
+> guidance.
+
+For a managed controller that is available for your AME version, configure the supported type shown
+in the Console. For example:
+
+```hcl
+addons = {
+  ingressController = {}
+}
+```
+
+This module intentionally does not validate `custom_values.type`, so an existing cluster using
+`ingress-nginx` is not blocked by a module upgrade. Check the
+[managed ingress controller documentation](https://docs.avisi.cloud/docs/product/overview/add-ons/managed-ingress-controller)
+or the Console for the currently supported options.
 
 Enabling the ingress controller provisions a cloud load balancer through a Kubernetes Service, and
 the cluster needs at least one node pool first. Disabling the add-on removes that LoadBalancer
