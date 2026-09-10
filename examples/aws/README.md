@@ -79,10 +79,9 @@ addons = {
 AME installs and updates these, so do not deploy them yourself as well.
 
 > **Warning:**
-> `ingressController` sets no `custom_values.type` deliberately. The ingress implementations
-> available today are all being superseded - `ingress-nginx` is being deprecated and `traefik` is
-> being replaced by a newer managed controller - so pinning a type would pin this cluster to
-> something on its way out. Leaving it unset follows whatever AME's current default is.
+> `ingress-nginx` is deprecated but remains available for new clusters with a warning. Avisi Cloud
+> performs compatibility checks for three months. After that, the controller is customer-managed and
+> Avisi Cloud no longer tests or validates its compatibility with new AME releases.
 
 > **Note:**
 > Enabling `ingressController` provisions a cloud load balancer through a Kubernetes Service, and

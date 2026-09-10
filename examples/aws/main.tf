@@ -131,10 +131,9 @@ module "cluster" {
   # Managed add-ons: AME installs and updates these, so do not also deploy them
   # yourself.
   #
-  # `ingressController` deliberately sets no custom_values. The ingress
-  # implementations available today are all being superseded, so pinning
-  # custom_values.type would pin the cluster to something on its way out.
-  # Unset means "follow AME's current default".
+  # ingress-nginx is deprecated but remains available for new clusters with a
+  # warning. Avisi Cloud performs compatibility checks for three months; after
+  # that, the controller is customer-managed.
   addons = {
     certManager       = {}
     ingressController = {}
