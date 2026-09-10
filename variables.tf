@@ -172,7 +172,7 @@ variable "maintenance_schedule_id" {
 # ---------------------------------------------------------------------------
 
 variable "addons" {
-  description = "Managed AME add-ons, keyed by name. Each entry has `enabled` (default true) and optional `custom_values`. `ingressController.type` selects an available controller; `ingress-nginx` is deprecated and cannot be selected for new clusters. Existing ingress-nginx clusters are unaffected for now. See the module README for current migration guidance. Requires provider >= 0.10.0."
+  description = "Managed AME add-ons, keyed by name. Each entry has `enabled` (default true) and optional `custom_values`. `ingressController.type` selects an available controller; `ingress-nginx` is deprecated but remains available for new clusters with a warning. Avisi Cloud performs compatibility checks for three months; after that, use and compatibility are the customer's responsibility. See the module README for current guidance. Requires provider >= 0.10.0."
   type = map(object({
     enabled       = optional(bool, true)
     custom_values = optional(map(string))

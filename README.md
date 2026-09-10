@@ -617,12 +617,13 @@ rather than from published documentation, so confirm them in the Console before 
 ### ingress-nginx is deprecated
 
 > **Warning:**
-> **Do not configure `custom_values.type = "ingress-nginx"` for a new cluster.**
+> **`ingress-nginx` is deprecated.**
 >
-> The managed `ingress-nginx` controller is deprecated and can no longer be selected for new
-> clusters. Existing clusters that use it continue to run for now. Because upstream no longer
-> maintains ingress-nginx, it no longer receives upstream releases, bug fixes, or security fixes.
-> Avisi Cloud is preparing migration guidance for existing users.
+> The managed `ingress-nginx` controller remains available for new clusters, with a deprecation
+> warning. Avisi Cloud will continue compatibility checks for three months. After that, the
+> controller is customer-managed: Avisi Cloud will no longer test or validate its compatibility with
+> new AME releases. Because upstream no longer maintains ingress-nginx, it no longer receives
+> upstream releases, bug fixes, or security fixes.
 >
 > You may migrate to and operate an ingress controller of your choice. Do not disable the managed
 > add-on until you have planned the traffic cutover: disabling it removes its LoadBalancer Service
@@ -639,8 +640,8 @@ addons = {
 }
 ```
 
-This module intentionally does not validate `custom_values.type`, so an existing cluster using
-`ingress-nginx` is not blocked by a module upgrade. Check the
+This module intentionally does not validate `custom_values.type`, so it remains possible to use the
+deprecated controller during the three-month compatibility period. Check the
 [managed ingress controller documentation](https://docs.avisi.cloud/docs/product/overview/add-ons/managed-ingress-controller)
 or the Console for the currently supported options.
 
@@ -878,7 +879,7 @@ Run `make docs` after changing any variable, output, resource or module block.
 | <a name="input_environment_slug"></a> [environment\_slug](#input\_environment\_slug) | Slug of the AME environment the cluster is created in. An environment groups clusters inside an organisation (for example `production` or `staging`) and is the boundary for cluster access. The environment must already exist; create it in the Console, with `acloud environments create`, or with an `acloud_environment` resource and pass its `slug` here. | `string` | n/a | yes |
 | <a name="input_organisation_slug"></a> [organisation\_slug](#input\_organisation\_slug) | Slug of the Avisi Cloud organisation that owns the environment and the cluster. This is the short identifier used in Console URLs and API paths, not the display name. Run `acloud config get-organisations` to list the slugs you have access to. | `string` | n/a | yes |
 | <a name="input_region"></a> [region](#input\_region) | Slug of the cloud provider region the cluster is provisioned in, for example `eu-west-1` (AWS), `fsn1` (Hetzner) or `ams2` (Cyso Cloud AMS2). The region also determines which availability zones node pools can be spread over. Can only be set at creation time. | `string` | n/a | yes |
-| <a name="input_addons"></a> [addons](#input\_addons) | Managed AME add-ons to configure, keyed by add-on name. Available names are `certManager`, `cloudNativePG`, `defaultNetworkPolicies`, `fluxOperator`, `gpu`, `ingressController`, `kured`, `logging`, `monitoring`, `nfs` and `sealedSecrets`. Each entry takes `enabled` (defaults to true) and `custom_values`, a string map whose accepted keys depend on the add-on: `ingressController` takes `type`, which selects the ingress implementation, and `kured` takes reboot-window settings. Leave `ingressController`'s `type` unset: the implementations it currently accepts are all being superseded, and an unset value follows whatever AME's current default is. Add-ons are managed by AME rather than by you, so do not also install them yourself. Requires provider >= 0.10.0. | <pre>map(object({<br/>    enabled       = optional(bool, true)<br/>    custom_values = optional(map(string))<br/>  }))</pre> | `{}` | no |
+| <a name="input_addons"></a> [addons](#input\_addons) | Managed AME add-ons, keyed by name. Each entry has `enabled` (default true) and optional `custom_values`. `ingressController.type` selects an available controller; `ingress-nginx` is deprecated but remains available for new clusters with a warning. Avisi Cloud performs compatibility checks for three months; after that, use and compatibility are the customer's responsibility. See the module README for current guidance. Requires provider >= 0.10.0. | <pre>map(object({<br/>    enabled       = optional(bool, true)<br/>    custom_values = optional(map(string))<br/>  }))</pre> | `{}` | no |
 | <a name="input_cluster_state_wait_seconds"></a> [cluster\_state\_wait\_seconds](#input\_cluster\_state\_wait\_seconds) | How long the provider waits for the cluster to reach its desired state before timing out. Raise it when provisioning is slow, for example on a private cluster where extra cloud resources are created first. Leave null to use the provider default of 600 seconds. | `number` | `null` | no |
 | <a name="input_cni"></a> [cni](#input\_cni) | Container Network Interface plugin for the cluster: `calico`, `cilium`, or `custom` to bring your own. Cilium uses eBPF and adds Layer 7 load balancing and richer observability; Calico is the only plugin that supports `enable_network_encryption`. Values are case-insensitive. Leave null to let AME choose, but be aware that which plugin that gets you is currently ambiguous: the AME product documentation states Calico is the default, while the platform API has defaulted an omitted CNI to Cilium since early 2024. Set this explicitly whenever the choice matters to you - in particular when you rely on network encryption. Note also that the provider does not send this attribute when it updates an existing cluster, so changing it afterwards may not take effect. | `string` | `null` | no |
 | <a name="input_default_availability_zone"></a> [default\_availability\_zone](#input\_default\_availability\_zone) | Availability zone used by single-zone node pools that do not set `availability_zone`, for example `eu-west-1a`. Only has an effect on pools where multi-AZ is off; multi-zone pools always fan out over every zone in the region. Leave null to let AME place the pool. This is the correctly spelled replacement for `default_availablity_zone`; when both are set, this one wins. | `string` | `null` | no |
